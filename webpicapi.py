@@ -57,7 +57,7 @@ class WebPicType(IntEnum):
     UNKNOWN = 64   # 0b01000000
 
 def WebPicType2Str(webpic_type: WebPicType) -> str:
-    """Convert WebPicType into String"""
+    """Convert WebPicType to String"""
     if webpic_type == WebPicType.PIXIV:
         return "pixiv"
     elif webpic_type == WebPicType.TWITTER:
@@ -72,6 +72,34 @@ def WebPicType2Str(webpic_type: WebPicType) -> str:
         return "weibo"
     else: # Unknown
         return None
+
+def Str2WebPicType(webpic_type_str: str) -> WebPicType:
+    """Convert String to WebPicType"""
+    if webpic_type_str == "pixiv":
+        return WebPicType.PIXIV
+    elif webpic_type_str == "twitter":
+        return WebPicType.TWITTER
+    elif webpic_type_str == "danbooru":
+        return WebPicType.DANBOORU
+    elif webpic_type_str == "yandere":
+        return WebPicType.YANDERE
+    elif webpic_type_str == "konachan":
+        return WebPicType.KONACHAN
+    elif webpic_type_str == "weibo":
+        return WebPicType.WEIBO
+    else: # Unknown
+        return WebPicType.UNKNOWN
+
+def WebPicTypeMatch(src_type: WebPicType, dest_type) -> bool:
+    """Check wether src_type is same as dest_type"""
+    # handle String dest_type
+    loc_dest_type = WebPicType.UNKNOWN
+    if type(dest_type) == str:
+        print("is str")
+        loc_dest_type = Str2WebPicType(dest_type)
+    else: # dest_type is WebPicType
+        loc_dest_type = dest_type
+    return bool(src_type == loc_dest_type)
 
 
 class WebPic:
@@ -111,7 +139,6 @@ class WebPic:
         return self.__webpic_type
 
 
-
 class DanbooruPic(WebPic):
     """handle artist identifications & downloading for danbooru"""
     
@@ -119,10 +146,17 @@ class DanbooruPic(WebPic):
     __filename: str = ""
     __has_artist_flag: bool = False
     __artist_name: str = ""
+    __tags: list = []
     
     def __init__(self, url: str):
         super().__init__(url)
+        # input url is not a danbooru url
+        if WebPicTypeMatch(self.getWebPicType(), WebPicType.DANBOORU) == False:
+            raise ValueError("Wrong url input. Input url must be under domain of \"danbooru.donmai.us\".")
         self.__analyzeUrl()
+    
+    def __analyzeUrl(self):
+        pass
     
     def hasArtist(self) -> bool:
         return self.__has_artist_flag
@@ -132,9 +166,5 @@ class DanbooruPic(WebPic):
     
     def downloadPic(self, dest_filepath = None):
         downloadUrl(self.__file_url, dest_filepath)
-    
-    def __analyzeUrl(self):
-        return self.getWebPicType()
-
 
 
