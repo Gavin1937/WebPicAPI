@@ -5,3 +5,7 @@
 
 # files
 main.py
+./*.jpg
+./*.png
+./*.bmp
+./*.webp

@@ -39,4 +39,39 @@ def downloadUrl(url, dest_filepath = None):
     file.write(resp.data)
     file.close()
 
+class WebPic:
+    """Online Picture/Wallpaper website template class"""
+    
+    # private variables
+    __url: str = ""
+    
+    # constructor
+    def __init__(self, url: str):
+        self.__url = url
+    
+    # public methods
+    def getUrl(self):
+        return self.__url
 
+
+class DanbooruPic(WebPic):
+    """handle artist identifications & downloading for danbooru"""
+    
+    __file_url: str = ""
+    __has_artist_flag: bool = False
+    __artist_name: str = ""
+    
+    def __init__(self, url: str):
+        super().__init__(url)
+    
+    def hasArtist(self) -> bool:
+        return self.__has_artist_flag
+    
+    def getArtistName(self) -> str:
+        return self.__artist_name
+    
+    def downloadPic(self, dest_filepath):
+        downloadUrl(self.__file_url, dest_filepath)
+    
+    def __analyzeUrl(self):
+        pass
