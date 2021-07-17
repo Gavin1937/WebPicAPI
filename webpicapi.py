@@ -142,12 +142,14 @@ class WebPic:
 class DanbooruPic(WebPic):
     """handle artist identifications & downloading for danbooru"""
     
+    # private variables
     __file_url: str = ""
     __filename: str = ""
     __has_artist_flag: bool = False
     __artist_name: str = ""
     __tags: list = []
     
+    # constructor
     def __init__(self, url: str):
         super().__init__(url)
         # input url is not a danbooru url
@@ -155,14 +157,25 @@ class DanbooruPic(WebPic):
             raise ValueError("Wrong url input. Input url must be under domain of \"danbooru.donmai.us\".")
         self.__analyzeUrl()
     
+    # private helper function
     def __analyzeUrl(self):
         pass
+    
+    # getters 
+    def getFileUrl(self):
+        return self.__file_url
+    
+    def getFileName(self):
+        return self.__filename
     
     def hasArtist(self) -> bool:
         return self.__has_artist_flag
     
     def getArtistName(self) -> str:
         return self.__artist_name
+    
+    def getTags(self):
+        return self.__tags
     
     def downloadPic(self, dest_filepath = None):
         downloadUrl(self.__file_url, dest_filepath)
