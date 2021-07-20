@@ -1,11 +1,18 @@
 
 
+# libs
+from urllib3 import PoolManager
+import os
+import ntpath
+from urllib.parse import urlparse
+from enum import IntEnum
+
+
 # public functions
 
 def getUrlSource(url) -> str:
     """get url source as string"""
     
-    from urllib3 import PoolManager
     resp = PoolManager().request("GET", url)
     str_data = resp.data.decode('utf-8')
     return str_data
@@ -13,14 +20,11 @@ def getUrlSource(url) -> str:
 def downloadUrl(url, dest_filepath = None):
     """download url to dest_filepath"""
     
-    from os import getcwd
-    dir = getcwd()
+    dir = os.getcwd()
     filename = ""
     
     # use original filename in url if user did not provide one in dest_filepath
-    import ntpath
     if dest_filepath == None:
-        from urllib.parse import urlparse
         p = urlparse(url)
         u_dir, u_filename = ntpath.split(p.path)
         filename = u_filename
@@ -33,15 +37,12 @@ def downloadUrl(url, dest_filepath = None):
             filename = tmp_filename
     
     # download file
-    from urllib3 import PoolManager
     resp = PoolManager().request("GET", url)
     file = open(dir+'/'+filename, "wb")
     file.write(resp.data)
     file.close()
 
 
-from enum import IntEnum
-from os import WEXITED
 # WebPicType const Table
 # Bit Table:
 # 0b        1             1       1       1         1         1         1       1
@@ -113,6 +114,75 @@ def WebPicTypeMatch(src_type: WebPicType, dest_type) -> bool:
     return bool(src_type == loc_dest_type)
 
 
+class ArtistInfo:
+    """Process & Hold Artist Information"""
+    
+    # private variables
+    __artist_names: list = []
+    __artist_has_fixed_name: bool = False
+    __artist_fixed_name: str = ""
+    __pixiv_url: str = ""
+    __twitter_url: str = ""
+    
+    # constructor
+    def __init__(self, webpic_type: WebPicType, url: str):
+        if webpic_type == WebPicType.PIXIV:
+            self.__analyzeInfo_pixiv(url)
+        elif webpic_type == WebPicType.TWITTER:
+            self.__analyzeInfo_twitter(url)
+        elif webpic_type == WebPicType.DANBOORU:
+            self.__analyzeInfo_danbooru(url)
+        elif webpic_type == WebPicType.YANDERE:
+            self.__analyzeInfo_yandere(url)
+        elif webpic_type == WebPicType.KONACHAN:
+            self.__analyzeInfo_konachan(url)
+        elif webpic_type == WebPicType.WEIBO:
+            self.__analyzeInfo_weibo(url)
+        elif webpic_type == WebPicType.EHENTAI:
+            self.__analyzeInfo_ehentai(url)
+        else: # Unknown
+            return None
+    
+    # getters
+    def getArtistNames(self) -> list:
+        return self.__artist_names
+    
+    def artistHasFixedName(self) -> bool:
+        return self.__artist_has_fixed_name
+    
+    def getArtistFixedName(self) -> str:
+        return self.__artist_fixed_name
+    
+    def getUrl_pixiv(self) -> str:
+        return self.__pixiv_url
+    
+    def getUrl_twitter(self) -> str:
+        return self.__twitter_url
+    
+    # helper functions
+    def __analyzeInfo_pixiv(self, url):
+        pass
+    
+    def __analyzeInfo_twitter(self, url):
+        pass
+    
+    def __analyzeInfo_danbooru(self, url):
+        pass
+    
+    def __analyzeInfo_yandere(self, url):
+        pass
+    
+    def __analyzeInfo_konachan(self, url):
+        pass
+    
+    def __analyzeInfo_weibo(self, url):
+        pass
+    
+    def __analyzeInfo_ehentai(self, url):
+        pass
+    
+
+
 class WebPic:
     """Online Picture/Wallpaper website template class"""
     
@@ -173,6 +243,24 @@ class DanbooruPic(WebPic):
     
     # private helper function
     def __analyzeUrl(self):
+        # determine ParentChild
+        pos1 = self.getUrl().find("/posts") + 6
+        pos2 = self.getUrl().find("?", pos1)
+        
+        # determine ParentChild status
+        if pos1 == -1:
+            self.__parent_child == ParentChild.UNKNOWN
+        elif self.getUrl()[pos1] == '/':
+            self.__parent_child == ParentChild.CHILD
+        else:
+            self.__parent_child == ParentChild.PARENT
+        
+        # get url source
+        src = getUrlSource(self.getUrl())
+        
+        # 
+        
+        
         pass
     
     # getters 
