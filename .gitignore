@@ -5,8 +5,8 @@
 
 # files
 main.py
-./*.json
-./*.jpg
-./*.png
-./*.bmp
-./*.webp
+*.json
+*.jpg
+*.png
+*.bmp
+*.webp
