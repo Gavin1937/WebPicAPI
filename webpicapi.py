@@ -103,7 +103,7 @@ def Str2WebPicType(webpic_type_str: str) -> WebPicType:
         return WebPicType.UNKNOWN
 
 def WebPicType2DomainStr(webpic_type: WebPicType) -> str:
-    """get domain string of a WebPic"""
+    """Convert DomainStr to WebPicType"""
     if webpic_type == WebPicType.PIXIV:
         return "www.pixiv.net"
     elif webpic_type == WebPicType.TWITTER:
@@ -122,6 +122,7 @@ def WebPicType2DomainStr(webpic_type: WebPicType) -> str:
         return None
 
 def DomainStr2WebPicType(domain_str: str) -> WebPicType:
+    """Convert DomainStr to WebPicType"""
     if "www.pixiv.net" in domain_str or "pximg.net" in domain_str:
         return WebPicType.PIXIV
     elif "twitter.com" in domain_str or "twimg.com" in domain_str:
