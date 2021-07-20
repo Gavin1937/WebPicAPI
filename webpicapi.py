@@ -4,7 +4,7 @@
 from urllib3 import PoolManager
 import os
 import ntpath
-from urllib.parse import urlparse
+import urllib.parse
 from enum import IntEnum
 
 
@@ -25,7 +25,7 @@ def downloadUrl(url, dest_filepath = None):
     
     # use original filename in url if user did not provide one in dest_filepath
     if dest_filepath == None:
-        p = urlparse(url)
+        p = urllib.parse.urlparse(url)
         u_dir, u_filename = ntpath.split(p.path)
         filename = u_filename
     # user provided dest_filepath
@@ -102,12 +102,30 @@ def Str2WebPicType(webpic_type_str: str) -> WebPicType:
     else: # Unknown
         return WebPicType.UNKNOWN
 
+def getWebPicDomain(webpic_type: WebPicType) -> str:
+    """get domain string of a WebPic"""
+    if webpic_type == WebPicType.PIXIV:
+        return "www.pixiv.net"
+    elif webpic_type == WebPicType.TWITTER:
+        return "www.twitter.com"
+    elif webpic_type == WebPicType.DANBOORU:
+        return "danbooru.donmai.us"
+    elif webpic_type == WebPicType.YANDERE:
+        return "yande.re"
+    elif webpic_type == WebPicType.KONACHAN:
+        return "konachan.com"
+    elif webpic_type == WebPicType.WEIBO:
+        return "weibo.com"
+    elif webpic_type == WebPicType.EHENTAI:
+        return "e-hentai.org"
+    else: # Unknown
+        return None
+
 def WebPicTypeMatch(src_type: WebPicType, dest_type) -> bool:
     """Check wether src_type is same as dest_type"""
     # handle String dest_type
     loc_dest_type = WebPicType.UNKNOWN
     if type(dest_type) == str:
-        print("is str")
         loc_dest_type = Str2WebPicType(dest_type)
     else: # dest_type is WebPicType
         loc_dest_type = dest_type
@@ -119,10 +137,8 @@ class ArtistInfo:
     
     # private variables
     __artist_names: list = []
-    __artist_has_fixed_name: bool = False
-    __artist_fixed_name: str = ""
-    __pixiv_url: str = ""
-    __twitter_url: str = ""
+    __pixiv_urls: list = []
+    __twitter_urls: list = []
     
     # constructor
     def __init__(self, webpic_type: WebPicType, url: str):
@@ -143,21 +159,21 @@ class ArtistInfo:
         else: # Unknown
             return None
     
+    # clear obj
+    def clear(self):
+        self.__artist_names.clear()
+        self.__pixiv_urls.clear()
+        self.__twitter_urls.clear()
+    
     # getters
     def getArtistNames(self) -> list:
         return self.__artist_names
+        
+    def getUrl_pixiv(self) -> list:
+        return self.__pixiv_urls
     
-    def artistHasFixedName(self) -> bool:
-        return self.__artist_has_fixed_name
-    
-    def getArtistFixedName(self) -> str:
-        return self.__artist_fixed_name
-    
-    def getUrl_pixiv(self) -> str:
-        return self.__pixiv_url
-    
-    def getUrl_twitter(self) -> str:
-        return self.__twitter_url
+    def getUrl_twitter(self) -> list:
+        return self.__twitter_urls
     
     # helper functions
     def __analyzeInfo_pixiv(self, url):
@@ -167,7 +183,49 @@ class ArtistInfo:
         pass
     
     def __analyzeInfo_danbooru(self, url):
-        pass
+        cur = 0
+        
+        # get url source
+        src = getUrlSource(url)
+        
+        # finding artist names
+        cur = src.find("Other Names")
+        if cur != -1:
+            names_src = src[cur:src.find("/li", cur)]
+            cur = 0
+            while cur != -1:
+                cur = names_src.find("artist-other-name", cur)
+                if cur == -1:
+                    break
+                cur = names_src.find("any_name_matches%5D=", cur) + 20
+                tmp_str = names_src[cur:names_src.find('\"', cur)]
+                self.__artist_names.append(urllib.parse.unquote(tmp_str))
+                cur += 3
+        else:
+            cur = src.find("og:title\" content=\"") + 19
+            self.__artist_names.append(src[cur:src.find(" | Artist Profile", cur)])
+        
+        # finding pixiv & twitter url
+        tmp_url = ""
+        had_pixiv = False
+        had_twitter = False
+        cur = src.find("list-bulleted")
+        url_src = src[cur:src.find("/ul", cur)]
+        cur = 0
+        while cur != -1:
+            cur = url_src.find("href=\"", cur)
+            if cur == -1:
+                break
+            cur += 6
+            tmp_url = url_src[cur:url_src.find('\"', cur)]
+            # checking url
+            if ("pixiv.net/member.php?id=" in tmp_url or
+                "pixiv.net/users/" in tmp_url):
+                self.__pixiv_urls.append(tmp_url)
+            elif "twitter.com/" in tmp_url:
+                tmp_str = tmp_url[tmp_url.find("twitter.com/")+12:]
+                if '/' not in tmp_str and '?' not in tmp_str:
+                    self.__twitter_urls.append(tmp_url)
     
     def __analyzeInfo_yandere(self, url):
         pass
@@ -194,8 +252,7 @@ class WebPic:
     def __init__(self, url: str):
         self.__url = url
         # identify __webpic_type
-        from urllib.parse import urlparse
-        p = urlparse(self.getUrl())
+        p = urllib.parse.urlparse(self.getUrl())
         netloc = p.netloc
         if "pixiv.net" in p.netloc:
             self.__webpic_type = WebPicType.PIXIV
@@ -214,11 +271,16 @@ class WebPic:
         else: # Unknown
             self.__webpic_type = WebPicType.UNKNOWN
     
+    # clear obj
+    def clear(self):
+        self.__url = 0
+        self.__webpic_type = WebPicType.UNKNOWN
+    
     # public methods
-    def getUrl(self):
+    def getUrl(self) -> str:
         return self.__url
     
-    def getWebPicType(self):
+    def getWebPicType(self) -> WebPicType:
         return self.__webpic_type
 
 
@@ -229,8 +291,9 @@ class DanbooruPic(WebPic):
     __parent_child: ParentChild = ParentChild.UNKNOWN
     __file_url: str = ""
     __filename: str = ""
+    __src_url: str = ""
     __has_artist_flag: bool = False
-    __artist_name: str = ""
+    __artist_info: ArtistInfo
     __tags: list = []
     
     # constructor
@@ -241,27 +304,77 @@ class DanbooruPic(WebPic):
             raise ValueError("Wrong url input. Input url must be under domain of \"danbooru.donmai.us\".")
         self.__analyzeUrl()
     
+    # clear obj
+    def clear(self):
+        super().clear()
+        self.__parent_child = ParentChild.UNKNOWN
+        self.__file_url = 0
+        self.__filename = 0
+        self.__src_url = 0
+        self.__has_artist_flag = False
+        self.__artist_info.clear()
+        self.__tags.clear()
+    
     # private helper function
     def __analyzeUrl(self):
         # determine ParentChild
-        pos1 = self.getUrl().find("/posts") + 6
-        pos2 = self.getUrl().find("?", pos1)
+        cur = self.getUrl().find("/posts") + 6
         
         # determine ParentChild status
-        if pos1 == -1:
-            self.__parent_child == ParentChild.UNKNOWN
-        elif self.getUrl()[pos1] == '/':
-            self.__parent_child == ParentChild.CHILD
+        if cur == -1:
+            self.__parent_child = ParentChild.UNKNOWN
+        elif self.getUrl()[cur] == '/':
+            self.__parent_child = ParentChild.CHILD
         else:
-            self.__parent_child == ParentChild.PARENT
+            self.__parent_child = ParentChild.PARENT
         
         # get url source
         src = getUrlSource(self.getUrl())
         
-        # 
+        # whether has artist
+        if self.isChild():
+            cur = src.find("artist-tag-list")
+            cur = src.find("class=\"wiki-link\"", cur)
+        elif self.isParent():
+            cur = src.find("artist-excerpt-link")
+        # found artist
+        if cur != -1:
+            cur = src.find("href=\"", cur) + 6
+            tmp_url = src[cur:src.find('\"', cur)]
+            tmp_url = getWebPicDomain(self.getWebPicType()) + tmp_url
+            # has artist
+            self.__has_artist_flag = True
+            # initialize ArtistInfo
+            self.__artist_info = ArtistInfo(self.getWebPicType(), tmp_url)
         
+        # finding file_url & filename
+        cur = src.find("post-info-size")
+        if cur != -1: # found file_url
+            cur = src.find("href=\"", cur) + 6
+            # set file url
+            self.__file_url = src[cur:src.find('\"', cur)]
+            # set filename
+            parse1 = urllib.parse.urlparse(self.__file_url)
+            parse2 = ntpath.split(parse1.path)
+            self.__filename = parse2[1]
         
-        pass
+        # finding src_url
+        cur = src.find("post-info-source", cur)
+        if cur != -1: # found source
+            cur = src.find("href=\"", cur) + 6
+            # set src_url
+            self.__src_url = src[cur:src.find('\"', cur)]
+        
+        # get tags
+        cur = 0
+        while cur > -1:
+            cur = src.find("data-tag-name=\"", cur)
+            if cur < 0:
+                break
+            cur += 15
+            tmp = src[cur:src.find('\"', cur)]
+            self.__tags.append(tmp)
+            cur += 3
     
     # getters 
     def getFileUrl(self) -> str:
@@ -270,11 +383,14 @@ class DanbooruPic(WebPic):
     def getFileName(self) -> str:
         return self.__filename
     
+    def getSrcUrl(self) -> str:
+        return self.__src_url
+    
     def hasArtist(self) -> bool:
         return self.__has_artist_flag
     
-    def getArtistName(self) -> str:
-        return self.__artist_name
+    def getArtistInfo(self) -> ArtistInfo:
+        return self.__artist_info
     
     def getTags(self) -> list:
         return self.__tags

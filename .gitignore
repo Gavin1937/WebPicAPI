@@ -5,6 +5,7 @@
 
 # files
 main.py
+./*.json
 ./*.jpg
 ./*.png
 ./*.bmp
