@@ -102,7 +102,7 @@ def Str2WebPicType(webpic_type_str: str) -> WebPicType:
     else: # Unknown
         return WebPicType.UNKNOWN
 
-def getWebPicDomain(webpic_type: WebPicType) -> str:
+def WebPicType2DomainStr(webpic_type: WebPicType) -> str:
     """get domain string of a WebPic"""
     if webpic_type == WebPicType.PIXIV:
         return "www.pixiv.net"
@@ -120,6 +120,24 @@ def getWebPicDomain(webpic_type: WebPicType) -> str:
         return "e-hentai.org"
     else: # Unknown
         return None
+
+def DomainStr2WebPicType(domain_str: str) -> WebPicType:
+    if "www.pixiv.net" in domain_str or "pximg.net" in domain_str:
+        return WebPicType.PIXIV
+    elif "twitter.com" in domain_str or "twimg.com" in domain_str:
+        return WebPicType.TWITTER
+    elif "danbooru.donmai.us" in domain_str:
+        return WebPicType.DANBOORU
+    elif "yande.re" in domain_str:
+        return WebPicType.YANDERE
+    elif "konachan.com" in domain_str:
+        return WebPicType.KONACHAN
+    elif "weibo.com" in domain_str:
+        return WebPicType.WEIBO
+    elif "e-hentai.org" in domain_str:
+        return WebPicType.EHENTAI
+    else: # Unknown
+        return WebPicType.UNKNOWN
 
 def WebPicTypeMatch(src_type: WebPicType, dest_type) -> bool:
     """Check wether src_type is same as dest_type"""
@@ -297,8 +315,8 @@ class DanbooruPic(WebPic):
     __tags: list = []
     
     # constructor
-    def __init__(self, url: str):
-        super().__init__(url)
+    def __init__(self, url: str, super_class: WebPic = None):
+        super(DanbooruPic, self).__init__(url)
         # input url is not a danbooru url
         if WebPicTypeMatch(self.getWebPicType(), WebPicType.DANBOORU) == False:
             raise ValueError("Wrong url input. Input url must be under domain of \"danbooru.donmai.us\".")
@@ -306,7 +324,7 @@ class DanbooruPic(WebPic):
     
     # clear obj
     def clear(self):
-        super().clear()
+        super(DanbooruPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
         self.__file_url = 0
         self.__filename = 0
@@ -341,7 +359,7 @@ class DanbooruPic(WebPic):
         if cur != -1:
             cur = src.find("href=\"", cur) + 6
             tmp_url = src[cur:src.find('\"', cur)]
-            tmp_url = getWebPicDomain(self.getWebPicType()) + tmp_url
+            tmp_url = WebPicType2DomainStr(self.getWebPicType()) + tmp_url
             # has artist
             self.__has_artist_flag = True
             # initialize ArtistInfo
