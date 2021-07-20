@@ -45,8 +45,8 @@ def downloadUrl(url, dest_filepath = None):
 
 # WebPicType const Table
 # Bit Table:
-# 0b        1             1       1       1         1         1         1       1
-#        Unknown      e-hentai  weibo  konachan  yande.re  danbooru  twitter  pixiv
+# 0b     1         1       1       1         1         1         1       1
+#     Unknown  e-hentai  weibo  konachan  yande.re  danbooru  twitter  pixiv
 class WebPicType(IntEnum):
     """Type of different picture/wallpaper websites"""
     PIXIV    = 1,   # 0b00000001
