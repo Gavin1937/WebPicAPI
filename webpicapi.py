@@ -44,17 +44,24 @@ from enum import IntEnum
 from os import WEXITED
 # WebPicType const Table
 # Bit Table:
-# 0b        0             0       0       0         0         0         0       0
-#    ReserveForFuture  Unknown  weibo  konachan  yande.re  danbooru  twitter  pixiv
+# 0b        1             1       1       1         1         1         1       1
+#        Unknown      e-hentai  weibo  konachan  yande.re  danbooru  twitter  pixiv
 class WebPicType(IntEnum):
     """Type of different picture/wallpaper websites"""
-    PIXIV = 1,     # 0b00000001
-    TWITTER = 2,   # 0b00000010
-    DANBOORU = 4,  # 0b00000100
-    YANDERE = 8,   # 0b00001000
-    KONACHAN = 16, # 0b00010000
-    WEIBO = 32,    # 0b00100000
-    UNKNOWN = 64   # 0b01000000
+    PIXIV    = 1,   # 0b00000001
+    TWITTER  = 2,   # 0b00000010
+    DANBOORU = 4,   # 0b00000100
+    YANDERE  = 8,   # 0b00001000
+    KONACHAN = 16,  # 0b00010000
+    WEIBO    = 32,  # 0b00100000
+    EHENTAI  = 64,  # 0b01000000
+    UNKNOWN  = 128  # 0b10000000
+
+class ParentChild(IntEnum):
+    """Whether a web page is parent, child, or unknown"""
+    UNKNOWN = 0,
+    PARENT = 1,
+    CHILD = 2
 
 def WebPicType2Str(webpic_type: WebPicType) -> str:
     """Convert WebPicType to String"""
@@ -70,6 +77,8 @@ def WebPicType2Str(webpic_type: WebPicType) -> str:
         return "konachan"
     elif webpic_type == WebPicType.WEIBO:
         return "weibo"
+    elif webpic_type == WebPicType.EHENTAI:
+        return "e-hentai"
     else: # Unknown
         return None
 
@@ -87,6 +96,8 @@ def Str2WebPicType(webpic_type_str: str) -> WebPicType:
         return WebPicType.KONACHAN
     elif webpic_type_str == "weibo":
         return WebPicType.WEIBO
+    elif webpic_type_str == "e-hentai":
+        return WebPicType.EHENTAI
     else: # Unknown
         return WebPicType.UNKNOWN
 
@@ -128,6 +139,8 @@ class WebPic:
             self.__webpic_type = WebPicType.KONACHAN
         elif "weibo.c" in p.netloc:
             self.__webpic_type = WebPicType.WEIBO
+        elif "e-hentai.org" in p.netloc:
+            self.__webpic_type = WebPicType.EHENTAI
         else: # Unknown
             self.__webpic_type = WebPicType.UNKNOWN
     
@@ -143,6 +156,7 @@ class DanbooruPic(WebPic):
     """handle artist identifications & downloading for danbooru"""
     
     # private variables
+    __parent_child: ParentChild = ParentChild.UNKNOWN
     __file_url: str = ""
     __filename: str = ""
     __has_artist_flag: bool = False
@@ -162,10 +176,10 @@ class DanbooruPic(WebPic):
         pass
     
     # getters 
-    def getFileUrl(self):
+    def getFileUrl(self) -> str:
         return self.__file_url
     
-    def getFileName(self):
+    def getFileName(self) -> str:
         return self.__filename
     
     def hasArtist(self) -> bool:
@@ -174,8 +188,17 @@ class DanbooruPic(WebPic):
     def getArtistName(self) -> str:
         return self.__artist_name
     
-    def getTags(self):
+    def getTags(self) -> list:
         return self.__tags
+    
+    def isParent(self) -> bool:
+        return bool(self.__parent_child == ParentChild.PARENT)
+    
+    def isChild(self) -> bool:
+        return bool(self.__parent_child == ParentChild.CHILD)
+    
+    def getParentChildStatus(self) -> ParentChild:
+        return self.__parent_child
     
     def downloadPic(self, dest_filepath = None):
         downloadUrl(self.__file_url, dest_filepath)
