@@ -614,6 +614,12 @@ class YanderePic(WebPic):
                 cur = tmp_str.find("pixiv.net/artworks/")
                 if cur != -1: 
                     self.__src_url = tmp_str
+                # handle new url with /en/
+                cur = tmp_str.find("pixiv.net/en/artworks/")
+                if cur != -1:
+                    parse2 = ntpath.split(parse1.path)
+                    pid = parse2[1]
+                    self.__src_url = "https://www.pixiv.net/artworks/" + pid
                 # handle old page url
                 cur = tmp_str.find("illust_id=")
                 if cur != -1: 
