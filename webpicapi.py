@@ -293,7 +293,44 @@ class ArtistInfo:
             )
     
     def __analyzeInfo_konachan(self, url):
-        pass
+        # get 1st name from url
+        tmp_name = url[url.find("title=")+6:]
+        self.__artist_names.append(urllib.parse.unquote(tmp_name))
+        
+        # get wiki page source
+        src = getUrlSource(url)
+        
+        # get urls
+        cur = 0
+        tmp_url = ""
+        while cur != -1:
+            cur = src.find("<th>URL</th>", cur)
+            if cur == -1:
+                break
+            cur = src.find("href=\"", cur) + 6
+            tmp_url = src[cur:src.find('\"', cur)]
+            # checking url
+            if ("pixiv.net/member.php?id=" in tmp_url or
+                "pixiv.net/users/" in tmp_url):
+                self.__pixiv_urls.append(tmp_url)
+            elif "twitter.com/" in tmp_url:
+                tmp_str = tmp_url[tmp_url.find("twitter.com/")+12:]
+                if '/' not in tmp_str and '?' not in tmp_str:
+                    self.__twitter_urls.append(tmp_url)
+                
+        # get artist names
+        cur = src.find("<th>Aliases</th>")
+        tmp_str = src[cur:src.find("</tr>", cur)]
+        cur = 0
+        while cur != -1:
+            cur = tmp_str.find("/wiki/show?title=", cur)
+            if cur == -1:
+                break
+            cur += 17
+            self.__artist_names.append(
+                urllib.parse.unquote(tmp_str[cur:tmp_str.find('\"', cur)])
+            )
+
     
     def __analyzeInfo_weibo(self, url):
         pass
@@ -577,6 +614,184 @@ class YanderePic(WebPic):
                 cur = tmp_str.find("pixiv.net/artworks/")
                 if cur != -1: 
                     self.__src_url = tmp_str
+                # handle old page url
+                cur = tmp_str.find("illust_id=")
+                if cur != -1: 
+                    cur += 10
+                    loc_cur = cur
+                    for i in range(len(tmp_str)-cur):
+                        loc_cur += i
+                        if tmp_str[loc_cur].isalpha():
+                            break
+                    pid = tmp_str[cur:loc_cur]
+                    self.__src_url = "https://www.pixiv.net/artworks/" + pid
+                # handle raw img url
+                cur = tmp_str.find("pximg.net")
+                if cur != -1: 
+                    parse2 = ntpath.split(parse1.path)
+                    pid = parse2[1]
+                    pid = pid[:pid.find('_')]
+                    self.__src_url = "https://www.pixiv.net/artworks/" + pid
+                pass
+            elif len(parse1.netloc) > 0: # twitter and other
+                self.__src_url = tmp_str
+        
+        # get tags
+        tmp_dict = {}
+        if self.isChild():
+            tmp_dict = j_dict[0]["tags"]
+        elif self.isParent():
+            tmp_dict = j_dict[0]
+        for k, v in tmp_dict.items():
+            self.__tags.append(k)
+    
+    
+    # getters 
+    def getFileUrl(self) -> str:
+        return self.__file_url
+    
+    def getFileName(self) -> str:
+        return self.__filename
+    
+    def getSrcUrl(self) -> str:
+        return self.__src_url
+    
+    def hasArtist(self) -> bool:
+        return self.__has_artist_flag
+    
+    def getArtistInfo(self) -> ArtistInfo:
+        return self.__artist_info
+    
+    def getTags(self) -> list:
+        return self.__tags
+    
+    def isParent(self) -> bool:
+        return bool(self.__parent_child == ParentChild.PARENT)
+    
+    def isChild(self) -> bool:
+        return bool(self.__parent_child == ParentChild.CHILD)
+    
+    def getParentChildStatus(self) -> ParentChild:
+        return self.__parent_child
+    
+    def downloadPic(self, dest_filepath = None):
+        downloadUrl(self.__file_url, dest_filepath)
+
+
+class KonachanPic(WebPic):
+    """handle artist identifications & downloading for konachan"""
+    
+    # private variables
+    __parent_child: ParentChild = ParentChild.UNKNOWN
+    __file_url: str = ""
+    __filename: str = ""
+    __src_url: str = ""
+    __has_artist_flag: bool = False
+    __artist_info: ArtistInfo = None
+    __tags: list = []
+    
+    # constructor
+    def __init__(self, url: str, super_class: WebPic = None):
+        super(KonachanPic, self).__init__(url)
+        # input url is not a danbooru url
+        if WebPicTypeMatch(self.getWebPicType(), WebPicType.KONACHAN) == False:
+            raise ValueError("Wrong url input. Input url must be under domain of \"konachan\".")
+        self.__analyzeUrl()
+    
+    # clear obj
+    def clear(self):
+        super(KonachanPic, self).clear()
+        self.__parent_child = ParentChild.UNKNOWN
+        self.__file_url = 0
+        self.__filename = 0
+        self.__src_url = 0
+        self.__has_artist_flag = False
+        if self.__artist_info != None:
+            self.__artist_info.clear()
+        self.__tags.clear()
+    
+    # private helper function
+    def __analyzeUrl(self):
+        # determine ParentChild
+        cur = self.getUrl().find("/post/show/")
+        
+        # determine ParentChild status
+        if cur != -1: # found pattern
+            self.__parent_child = ParentChild.CHILD
+        elif "/post" in self.getUrl() or "/pool" in self.getUrl():
+            self.__parent_child = ParentChild.PARENT
+        else:
+            self.__parent_child = ParentChild.UNKNOWN
+        
+        # get url source
+        src = getUrlSource(self.getUrl())
+        
+        # get json data
+        j_dict = {}
+        tmp_str = "["
+        cur = 0
+        # ignore bad url from pool
+        if "/pool" in self.getUrl() and "var thumb = $(\"hover-thumb\");" in src:
+            return 
+        while cur != -1:
+            cur = src.find("Post.register", cur)
+            if cur == -1:
+                break
+            cur = src.find('(', cur) + 1
+            tmp_str += src[cur:src.find('\n', cur)]
+            tmp_str = tmp_str[:tmp_str.rfind(')')] + ','
+        if len(tmp_str) > 1:
+            tmp_str = tmp_str[:-1] + ']'
+            j_dict = json.loads(tmp_str)
+        else: # bad url
+            return
+        
+        # whether has artist
+        tmp_str = ""
+        tmp_dict = {}
+        if "tags" in j_dict[0]:
+            tmp_dict = j_dict[0]["tags"]
+        elif self.isParent():
+            tmp_dict = j_dict[0]
+        # found artist name
+        for k, v in tmp_dict.items():
+            if v == "artist":
+                tmp_str = k
+                break
+        # get artist info
+        if len(tmp_str) > 0:
+            # generate artist wiki page
+            tmp_str = WebPicType2DomainStr(WebPicType.KONACHAN) + "/wiki/show?title=" + tmp_str
+            # has artist
+            self.__has_artist_flag = True
+            # initialize ArtistInfo
+            self.__artist_info = ArtistInfo(self.getWebPicType(), tmp_str)
+        
+        if self.isChild():
+            # finding file_url & filename
+            
+            # set file url
+            self.__file_url = j_dict[0]["posts"][0]["file_url"]
+            # set filename
+            parse1 = urllib.parse.urlparse(self.__file_url)
+            parse2 = ntpath.split(parse1.path)
+            self.__filename = parse2[1]
+            
+            # finding src_url
+            tmp_str = str(j_dict[0]["posts"][0]["source"])
+            parse1 = urllib.parse.urlparse(tmp_str)
+            if DomainStr2WebPicType(parse1.netloc) == WebPicType.PIXIV:
+                # use pixiv id for pixiv source
+                # handle new url
+                cur = tmp_str.find("pixiv.net/artworks/")
+                if cur != -1: 
+                    self.__src_url = tmp_str
+                # handle new url with /en/
+                cur = tmp_str.find("pixiv.net/en/artworks/")
+                if cur != -1:
+                    parse2 = ntpath.split(parse1.path)
+                    pid = parse2[1]
+                    self.__src_url = "https://www.pixiv.net/artworks/" + pid
                 # handle old page url
                 cur = tmp_str.find("illust_id=")
                 if cur != -1: 
