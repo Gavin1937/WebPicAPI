@@ -507,6 +507,27 @@ class DanbooruPic(WebPic):
     
     def downloadPic(self, dest_filepath = None):
         downloadUrl(self.__file_url, dest_filepath)
+    
+    def getChildrenUrls(self) -> list:
+        # only process if current obj is parent
+        if not self.isParent():
+            return []
+        
+        # get url source
+        src = getUrlSource(self.getUrl())
+        
+        # find post id from src & build post url w/ it
+        output = []
+        cur = 0
+        while cur != -1:
+            cur = src.find("data-id=\"", cur)
+            if cur == -1:
+                break
+            cur += 9
+            post_id = src[cur:src.find('\"', cur)]
+            output.append("https://"+WebPicType2DomainStr(WebPicType.DANBOORU)+"/posts/"+post_id)
+        
+        return output
 
 
 class YanderePic(WebPic):
@@ -546,7 +567,7 @@ class YanderePic(WebPic):
         # determine ParentChild
         cur = self.getUrl().find("/post/show/")
         
-        # determine ParentChild status
+        # determine ParentChild stcatus
         if cur != -1: # found pattern
             self.__parent_child = ParentChild.CHILD
         elif "/post" in self.getUrl() or "/pool" in self.getUrl():
@@ -627,7 +648,7 @@ class YanderePic(WebPic):
                     loc_cur = cur
                     for i in range(len(tmp_str)-cur):
                         loc_cur += i
-                        if tmp_str[loc_cur].isalpha():
+                        if loc_cur >= len(tmp_str) or tmp_str[loc_cur].isalpha():
                             break
                     pid = tmp_str[cur:loc_cur]
                     self.__src_url = "https://www.pixiv.net/artworks/" + pid
@@ -682,6 +703,47 @@ class YanderePic(WebPic):
     
     def downloadPic(self, dest_filepath = None):
         downloadUrl(self.__file_url, dest_filepath)
+    
+    def getChildrenUrls(self) -> list:
+        # only process if current obj is parent
+        if not self.isParent():
+            return []
+        
+        # get url source
+        src = getUrlSource(self.getUrl())
+        
+        # get json data
+        j_dict = {}
+        tmp_str = "["
+        cur = 0
+        # ignore bad url from pool
+        if "/pool" in self.getUrl() and "var thumb = $(\"hover-thumb\");" in src:
+            return 
+        while cur != -1:
+            cur = src.find("Post.register", cur)
+            if cur == -1:
+                break
+            cur = src.find('(', cur) + 1
+            tmp_str += src[cur:src.find('\n', cur)]
+            tmp_str = tmp_str[:tmp_str.rfind(')')] + ','
+        if len(tmp_str) > 1:
+            tmp_str = tmp_str[:-1] + ']'
+            j_dict = json.loads(tmp_str)
+        else: # bad url
+            return []
+        
+        # find post id from j_dict & build post url w/ it
+        output = []
+        if len(j_dict) == 1: # current parent is like "/pool/show/"
+            for item in j_dict[0]["posts"]:
+                post_id = str(item["id"])
+                output.append("https://"+WebPicType2DomainStr(WebPicType.YANDERE)+"/post/show/"+post_id)
+        elif len(j_dict) > 1: # current parent is like "/post?tags="
+            for item in j_dict[1:]:
+                post_id = str(item["id"])
+                output.append("https://"+WebPicType2DomainStr(WebPicType.YANDERE)+"/post/show/"+post_id)
+        
+        return output
 
 
 class KonachanPic(WebPic):
@@ -805,7 +867,7 @@ class KonachanPic(WebPic):
                     loc_cur = cur
                     for i in range(len(tmp_str)-cur):
                         loc_cur += i
-                        if tmp_str[loc_cur].isalpha():
+                        if loc_cur >= len(tmp_str) or tmp_str[loc_cur].isalpha():
                             break
                     pid = tmp_str[cur:loc_cur]
                     self.__src_url = "https://www.pixiv.net/artworks/" + pid
@@ -860,4 +922,46 @@ class KonachanPic(WebPic):
     
     def downloadPic(self, dest_filepath = None):
         downloadUrl(self.__file_url, dest_filepath)
+    
+    def getChildrenUrls(self) -> list:
+        # only process if current obj is parent
+        if not self.isParent():
+            return []
+        
+        # get url source
+        src = getUrlSource(self.getUrl())
+        
+        # get json data
+        j_dict = {}
+        tmp_str = "["
+        cur = 0
+        # ignore bad url from pool
+        if "/pool" in self.getUrl() and "var thumb = $(\"hover-thumb\");" in src:
+            return 
+        while cur != -1:
+            cur = src.find("Post.register", cur)
+            if cur == -1:
+                break
+            cur = src.find('(', cur) + 1
+            tmp_str += src[cur:src.find('\n', cur)]
+            tmp_str = tmp_str[:tmp_str.rfind(')')] + ','
+        if len(tmp_str) > 1:
+            tmp_str = tmp_str[:-1] + ']'
+            j_dict = json.loads(tmp_str)
+        else: # bad url
+            return []
+        
+        # find post id from j_dict & build post url w/ it
+        output = []
+        if len(j_dict) == 1: # current parent is like "/pool/show/"
+            for item in j_dict[0]["posts"]:
+                post_id = str(item["id"])
+                output.append("https://"+WebPicType2DomainStr(WebPicType.KONACHAN)+"/post/show/"+post_id)
+        elif len(j_dict) > 1: # current parent is like "/post?tags="
+            for item in j_dict[1:]:
+                post_id = str(item["id"])
+                output.append("https://"+WebPicType2DomainStr(WebPicType.KONACHAN)+"/post/show/"+post_id)
+        
+        return output
+
 
