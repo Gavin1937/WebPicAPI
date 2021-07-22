@@ -1,5 +1,4 @@
 
-
 # libs
 from urllib3 import PoolManager
 import os
@@ -7,6 +6,7 @@ import ntpath
 import urllib.parse
 import json
 from enum import IntEnum
+from pixivpy3 import *
 
 
 # public functions
@@ -202,8 +202,36 @@ class ArtistInfo:
         return self.__twitter_urls
     
     # helper functions
-    def __analyzeInfo_pixiv(self, url):
-        pass
+    def __analyzeInfo_pixiv(self, uid: int, api: AppPixivAPI):
+        # get user_res as python dict
+        user_res = api.user_detail(uid)
+        
+        # set artist name
+        self.__artist_names = user_res["user"]["name"]
+        
+        # set artist pixiv url
+        self.__pixiv_urls = "https://pixiv.net/users"+str(user_res["user"]["id"])
+        
+        # set artist twitter url (if has one)
+        possible_url = user_res["profile"]["twitter_url"]
+        if len(possible_url) > 0: # user has twitter url in profile section
+            self.__twitter_urls = possible_url
+        else: # try to find twitter url from comment
+            possible_url = user_res["user"]["comment"]
+            cur = possible_url.find("twitter.com/")
+            if cur == -1:
+                pass
+            cur += 12
+            cur2 = cur
+            while (
+                possible_url[cur2].isalpha() or
+                possible_url[cur2].isnumeric() or
+                possible_url[cur2] == '_'
+                ): 
+                cur2 += 1
+            
+            if cur2 <= len(possible_url):
+                self.__twitter_urls = "https://twitter.com/" + possible_url[cur:cur2]
     
     def __analyzeInfo_twitter(self, url):
         pass
@@ -292,7 +320,7 @@ class ArtistInfo:
                 urllib.parse.unquote(tmp_str[cur:tmp_str.find('\"', cur)])
             )
     
-    def __analyzeInfo_konachan(self, url):
+    def __analyzeInfo_konachan(self, url: str):
         # get 1st name from url
         tmp_name = url[url.find("title=")+6:]
         self.__artist_names.append(urllib.parse.unquote(tmp_name))
@@ -381,6 +409,156 @@ class WebPic:
     
     def getWebPicType(self) -> WebPicType:
         return self.__webpic_type
+
+
+class PixivPic(WebPic):
+    """handle artist identifications & downloading for pixiv"""
+    
+    # private variables
+    __parent_child: ParentChild = ParentChild.UNKNOWN
+    __file_url: str = ""
+    __filename: str = ""
+    __src_url: str = ""
+    __has_artist_flag: bool = False
+    __artist_info: ArtistInfo = None
+    __tags: list = []
+    
+    # api handles
+    __api: AppPixivAPI = None
+    
+    # constructor
+    def __init__(self, url: str, super_class: WebPic = None):
+        super(PixivPic, self).__init__(url)
+        # input url isn't a pixiv url
+        if WebPicTypeMatch(self.getWebPicType(), WebPicType.PIXIV) == False:
+            raise ValueError("Wrong url input. Input url must be under domain of \"pixiv.net\".")
+        self.__analyzeUrl()
+    
+    # clear obj
+    def clear(self):
+        super(PixivPic, self).clear()
+        self.__parent_child = ParentChild.UNKNOWN
+        self.__file_url = 0
+        self.__filename = 0
+        self.__src_url = 0
+        self.__has_artist_flag = False
+        if self.__artist_info != None:
+            self.__artist_info.clear()
+        self.__tags.clear()
+    
+    # private helper function
+    def __analyzeUrl(self):
+        # determine ParentChild
+        cur = self.getUrl().find("/posts") + 6
+        
+        # determine ParentChild status
+        if cur == -1:
+            self.__parent_child = ParentChild.UNKNOWN
+        elif self.getUrl()[cur] == '/':
+            self.__parent_child = ParentChild.CHILD
+        else:
+            self.__parent_child = ParentChild.PARENT
+        
+        # get url source
+        src = getUrlSource(self.getUrl())
+        
+        # whether has artist
+        if self.isChild():
+            cur = src.find("artist-tag-list")
+            if cur != -1:
+                cur = src.find("class=\"wiki-link\"", cur)
+        elif self.isParent():
+            cur = src.find("artist-excerpt-link")
+        # found artist
+        if cur != -1:
+            cur = src.find("href=\"", cur) + 6
+            tmp_url = src[cur:src.find('\"', cur)]
+            tmp_url = WebPicType2DomainStr(self.getWebPicType()) + tmp_url
+            # has artist
+            self.__has_artist_flag = True
+            # initialize ArtistInfo
+            self.__artist_info = ArtistInfo(self.getWebPicType(), tmp_url)
+        
+        # finding file_url & filename
+        cur = src.find("post-info-size")
+        if cur != -1: # found file_url
+            cur = src.find("href=\"", cur) + 6
+            # set file url
+            self.__file_url = src[cur:src.find('\"', cur)]
+            # set filename
+            parse1 = urllib.parse.urlparse(self.__file_url)
+            parse2 = ntpath.split(parse1.path)
+            self.__filename = parse2[1]
+        
+        # finding src_url
+        cur = src.find("post-info-source", cur)
+        if cur != -1: # found source
+            cur = src.find("href=\"", cur) + 6
+            # set src_url
+            self.__src_url = src[cur:src.find('\"', cur)]
+        
+        # get tags
+        cur = 0
+        while cur > -1:
+            cur = src.find("data-tag-name=\"", cur)
+            if cur < 0:
+                break
+            cur += 15
+            tmp = src[cur:src.find('\"', cur)]
+            self.__tags.append(tmp)
+            cur += 3
+    
+    # getters 
+    def getFileUrl(self) -> str:
+        return self.__file_url
+    
+    def getFileName(self) -> str:
+        return self.__filename
+    
+    def getSrcUrl(self) -> str:
+        return self.__src_url
+    
+    def hasArtist(self) -> bool:
+        return self.__has_artist_flag
+    
+    def getArtistInfo(self) -> ArtistInfo:
+        return self.__artist_info
+    
+    def getTags(self) -> list:
+        return self.__tags
+    
+    def isParent(self) -> bool:
+        return bool(self.__parent_child == ParentChild.PARENT)
+    
+    def isChild(self) -> bool:
+        return bool(self.__parent_child == ParentChild.CHILD)
+    
+    def getParentChildStatus(self) -> ParentChild:
+        return self.__parent_child
+    
+    def downloadPic(self, dest_filepath = None):
+        downloadUrl(self.__file_url, dest_filepath)
+    
+    def getChildrenUrls(self) -> list:
+        # only process if current obj is parent
+        if not self.isParent():
+            return []
+        
+        # get url source
+        src = getUrlSource(self.getUrl())
+        
+        # find post id from src & build post url w/ it
+        output = []
+        cur = 0
+        while cur != -1:
+            cur = src.find("data-id=\"", cur)
+            if cur == -1:
+                break
+            cur += 9
+            post_id = src[cur:src.find('\"', cur)]
+            output.append("https://"+WebPicType2DomainStr(WebPicType.DANBOORU)+"/posts/"+post_id)
+        
+        return output
 
 
 class DanbooruPic(WebPic):
@@ -545,7 +723,7 @@ class YanderePic(WebPic):
     # constructor
     def __init__(self, url: str, super_class: WebPic = None):
         super(YanderePic, self).__init__(url)
-        # input url is not a danbooru url
+        # input url is not a yandere url
         if WebPicTypeMatch(self.getWebPicType(), WebPicType.YANDERE) == False:
             raise ValueError("Wrong url input. Input url must be under domain of \"yande.re\".")
         self.__analyzeUrl()
@@ -761,7 +939,7 @@ class KonachanPic(WebPic):
     # constructor
     def __init__(self, url: str, super_class: WebPic = None):
         super(KonachanPic, self).__init__(url)
-        # input url is not a danbooru url
+        # input url is not a konachan url
         if WebPicTypeMatch(self.getWebPicType(), WebPicType.KONACHAN) == False:
             raise ValueError("Wrong url input. Input url must be under domain of \"konachan\".")
         self.__analyzeUrl()
