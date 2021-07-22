@@ -589,14 +589,12 @@ class PixivPic(WebPic):
                 path, name = ntpath.split(dest_filepath)
                 self.__api.downloadIllust(url=url, path=path)
     
-    def getChildrenUrls(self) -> list:
-        """Get all children urls of a parent"""
+    def getChildrenUrls(self, max_num: int = 30) -> list:
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
         
         # only process if current obj is parent
         if not self.isParent():
             return []
-        
-        output = []
         
         # get user illustration list
         tmp_str = self.__artist_info.getUrl_pixiv()[0]
@@ -604,11 +602,17 @@ class PixivPic(WebPic):
         
         # get all illustrations of this user
         j_dict = self.__api.getUserIllustList(pid)
+        counter = 0
+        output = []
         while "next_url" in j_dict:
             for item in j_dict["illusts"]:
                 output.append("https://pixiv.net/artworks/"+str(item["id"]))
+                counter += 1
+                if counter == max_num:
+                    return output
             if j_dict["next_url"] == None:
                 return output
+            # move to next page
             j_dict = self.__api.getUserIllustList_nextPage(j_dict["next_url"])
         
         return output
@@ -739,25 +743,52 @@ class DanbooruPic(WebPic):
     def downloadPic(self, dest_filepath = None):
         downloadUrl(self.__file_url, dest_filepath)
     
-    def getChildrenUrls(self) -> list:
+    def getChildrenUrls(self, max_num: int = 30) -> list:
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
+        
         # only process if current obj is parent
         if not self.isParent():
             return []
         
-        # get url source
-        src = getUrlSource(self.getUrl())
+        counter = 0
+        # process url
+        url = self.getUrl()
+        parse1 = urllib.parse.urlparse(url)
+        if parse1.query == None:
+            url += "?page=#"
+        elif "page=" not in parse1.query: # no page indicator
+            url += "&page=#"
+        else: # "page=" in parse1.query
+            cur = url.find("page=")
+            cur2 = findFirstNonNum(url, cur+5)
+            url = url.replace(url[cur:cur2], "page=#")
         
-        # find post id from src & build post url w/ it
+        # fetching urls
         output = []
-        cur = 0
-        while cur != -1:
-            cur = src.find("data-id=\"", cur)
-            if cur == -1:
+        page_count = 1
+        while counter != max_num:
+            # generate url for current page
+            loc_url = url.replace("page=#", f"page={page_count}")
+            page_count += 1
+            
+            # get url source
+            src = getUrlSource(loc_url)
+            cur = 0
+            if "data-id" not in src: # reaches end of pages
                 break
-            cur += 9
-            post_id = src[cur:src.find('\"', cur)]
-            output.append("https://"+WebPicType2DomainStr(WebPicType.DANBOORU)+"/posts/"+post_id)
-        
+            
+            # find post id from src & build post url w/ it
+            while cur != -1:
+                cur = src.find("data-id=\"", cur)
+                if cur == -1:
+                    break
+                cur += 9
+                post_id = src[cur:src.find('\"', cur)]
+                output.append("https://"+WebPicType2DomainStr(WebPicType.DANBOORU)+"/posts/"+post_id)
+                counter += 1
+                if counter == max_num:
+                    return output
+            
         return output
 
 
@@ -935,44 +966,86 @@ class YanderePic(WebPic):
     def downloadPic(self, dest_filepath = None):
         downloadUrl(self.__file_url, dest_filepath)
     
-    def getChildrenUrls(self) -> list:
+    def getChildrenUrls(self, max_num: int = 30) -> list:
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
+        
         # only process if current obj is parent
         if not self.isParent():
             return []
         
-        # get url source
-        src = getUrlSource(self.getUrl())
+        # process url
+        url = self.getUrl()
+        parse1 = urllib.parse.urlparse(url)
+        if parse1.query == None:
+            url += "?page=#"
+        elif "page=" not in parse1.query: # no page indicator
+            url += "&page=#"
+        else: # "page=" in parse1.query
+            cur = url.find("page=")
+            cur2 = findFirstNonNum(url, cur+5)
+            url = url.replace(url[cur:cur2], "page=#")
         
-        # get json data
-        j_dict = {}
-        tmp_str = "["
-        cur = 0
-        # ignore bad url from pool
-        if "/pool" in self.getUrl() and "var thumb = $(\"hover-thumb\");" in src:
-            return 
-        while cur != -1:
-            cur = src.find("Post.register", cur)
-            if cur == -1:
-                break
-            cur = src.find('(', cur) + 1
-            tmp_str += src[cur:src.find('\n', cur)]
-            tmp_str = tmp_str[:tmp_str.rfind(')')] + ','
-        if len(tmp_str) > 1:
-            tmp_str = tmp_str[:-1] + ']'
-            j_dict = json.loads(tmp_str)
-        else: # bad url
-            return []
-        
-        # find post id from j_dict & build post url w/ it
+        counter = 0
+        page_count = 1
+        last_post_id = 0
         output = []
-        if len(j_dict) == 1: # current parent is like "/pool/show/"
-            for item in j_dict[0]["posts"]:
-                post_id = str(item["id"])
-                output.append("https://"+WebPicType2DomainStr(WebPicType.YANDERE)+"/post/show/"+post_id)
-        elif len(j_dict) > 1: # current parent is like "/post?tags="
-            for item in j_dict[1:]:
-                post_id = str(item["id"])
-                output.append("https://"+WebPicType2DomainStr(WebPicType.YANDERE)+"/post/show/"+post_id)
+        while counter != max_num:
+            # generate loc_url
+            loc_url = url.replace("page=#", f"page={page_count}")
+            page_count += 1
+            
+            # get url source
+            src = getUrlSource(loc_url)
+            
+            # get json data
+            j_dict = {}
+            tmp_str = "["
+            cur = 0
+            # ignore bad url from pool
+            if "/pool" in self.getUrl() and "var thumb = $(\"hover-thumb\");" in src:
+                return 
+            while cur != -1:
+                cur = src.find("Post.register", cur)
+                if cur == -1:
+                    break
+                cur = src.find('(', cur) + 1
+                tmp_str += src[cur:src.find('\n', cur)]
+                tmp_str = tmp_str[:tmp_str.rfind(')')] + ','
+            if len(tmp_str) > 1:
+                tmp_str = tmp_str[:-1] + ']'
+                j_dict = json.loads(tmp_str)
+            else: # bad url
+                return []
+            
+            # make sure we didn't reaches end of pages
+            if "/post" in loc_url and len(j_dict[0]) == 0:
+                break # reaches end of page
+            elif "/pool/" in loc_url and j_dict[0]["posts"] == None:
+                break # reaches end of page
+            elif "/pool/" in loc_url:
+                for item in j_dict[0]["posts"]:
+                    if last_post_id == item["id"]:
+                        return output
+            
+            # find post id from j_dict & build post url w/ it
+            if len(j_dict) == 1 and "/pool/" in loc_url: # current parent is like "/pool/show/"
+                for item in j_dict[0]["posts"]:
+                    post_id = str(item["id"])
+                    output.append("https://"+WebPicType2DomainStr(WebPicType.YANDERE)+"/post/show/"+post_id)
+                    counter += 1
+                    last_post_id = item["id"]
+                    if counter == max_num:
+                        return output
+            elif len(j_dict) > 1 and "/post" in loc_url: # current parent is like "/post?tags="
+                for item in j_dict[1:]:
+                    post_id = str(item["id"])
+                    output.append("https://"+WebPicType2DomainStr(WebPicType.YANDERE)+"/post/show/"+post_id)
+                    counter += 1
+                    last_post_id = item["id"]
+                    if counter == max_num:
+                        return output
+            if counter == max_num:
+                return output
         
         return output
 
@@ -1154,44 +1227,86 @@ class KonachanPic(WebPic):
     def downloadPic(self, dest_filepath = None):
         downloadUrl(self.__file_url, dest_filepath)
     
-    def getChildrenUrls(self) -> list:
+    def getChildrenUrls(self, max_num: int = 30) -> list:
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
+        
         # only process if current obj is parent
         if not self.isParent():
             return []
         
-        # get url source
-        src = getUrlSource(self.getUrl())
+        # process url
+        url = self.getUrl()
+        parse1 = urllib.parse.urlparse(url)
+        if parse1.query == None:
+            url += "?page=#"
+        elif "page=" not in parse1.query: # no page indicator
+            url += "&page=#"
+        else: # "page=" in parse1.query
+            cur = url.find("page=")
+            cur2 = findFirstNonNum(url, cur+5)
+            url = url.replace(url[cur:cur2], "page=#")
         
-        # get json data
-        j_dict = {}
-        tmp_str = "["
-        cur = 0
-        # ignore bad url from pool
-        if "/pool" in self.getUrl() and "var thumb = $(\"hover-thumb\");" in src:
-            return 
-        while cur != -1:
-            cur = src.find("Post.register", cur)
-            if cur == -1:
-                break
-            cur = src.find('(', cur) + 1
-            tmp_str += src[cur:src.find('\n', cur)]
-            tmp_str = tmp_str[:tmp_str.rfind(')')] + ','
-        if len(tmp_str) > 1:
-            tmp_str = tmp_str[:-1] + ']'
-            j_dict = json.loads(tmp_str)
-        else: # bad url
-            return []
-        
-        # find post id from j_dict & build post url w/ it
+        counter = 0
+        page_count = 1
+        last_post_id = 0
         output = []
-        if len(j_dict) == 1: # current parent is like "/pool/show/"
-            for item in j_dict[0]["posts"]:
-                post_id = str(item["id"])
-                output.append("https://"+WebPicType2DomainStr(WebPicType.KONACHAN)+"/post/show/"+post_id)
-        elif len(j_dict) > 1: # current parent is like "/post?tags="
-            for item in j_dict[1:]:
-                post_id = str(item["id"])
-                output.append("https://"+WebPicType2DomainStr(WebPicType.KONACHAN)+"/post/show/"+post_id)
+        while counter != max_num:
+            # generate loc_url
+            loc_url = url.replace("page=#", f"page={page_count}")
+            page_count += 1
+            
+            # get url source
+            src = getUrlSource(loc_url)
+            
+            # get json data
+            j_dict = {}
+            tmp_str = "["
+            cur = 0
+            # ignore bad url from pool
+            if "/pool" in self.getUrl() and "var thumb = $(\"hover-thumb\");" in src:
+                return 
+            while cur != -1:
+                cur = src.find("Post.register", cur)
+                if cur == -1:
+                    break
+                cur = src.find('(', cur) + 1
+                tmp_str += src[cur:src.find('\n', cur)]
+                tmp_str = tmp_str[:tmp_str.rfind(')')] + ','
+            if len(tmp_str) > 1:
+                tmp_str = tmp_str[:-1] + ']'
+                j_dict = json.loads(tmp_str)
+            else: # bad url
+                return []
+            
+            # make sure we didn't reaches end of pages
+            if "/post" in loc_url and len(j_dict[0]) == 0:
+                break # reaches end of page
+            elif "/pool/" in loc_url and j_dict[0]["posts"] == None:
+                break # reaches end of page
+            elif "/pool/" in loc_url:
+                for item in j_dict[0]["posts"]:
+                    if last_post_id == item["id"]:
+                        return output
+            
+            # find post id from j_dict & build post url w/ it
+            if len(j_dict) == 1 and "/pool/" in loc_url: # current parent is like "/pool/show/"
+                for item in j_dict[0]["posts"]:
+                    post_id = str(item["id"])
+                    last_post_id = item["id"]
+                    output.append("https://"+WebPicType2DomainStr(WebPicType.KONACHAN)+"/post/show/"+post_id)
+                    counter += 1
+                    if counter == max_num:
+                        return output
+            elif len(j_dict) > 1 and "/post" in loc_url: # current parent is like "/post?tags="
+                for item in j_dict[1:]:
+                    post_id = str(item["id"])
+                    last_post_id = item["id"]
+                    output.append("https://"+WebPicType2DomainStr(WebPicType.KONACHAN)+"/post/show/"+post_id)
+                    counter += 1
+                    if counter == max_num:
+                        return output
+            if counter == max_num:
+                return output
         
         return output
 
