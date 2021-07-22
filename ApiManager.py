@@ -1,4 +1,4 @@
-
+#! /bin/python3
 
 # source: https://stackoverflow.com/questions/31875/is-there-a-simple-elegant-way-to-define-singletons
 class Singleton:
@@ -59,7 +59,6 @@ apitoken_template = """
 # libs
 import os
 import json
-from webpicapi import PixivPic
 # api libs
 from pixivpy3 import *
 
@@ -115,6 +114,10 @@ class PixivAPI:
     
     def getUserIllustList(self, pid: int) -> dict:
         return self.__api.user_illusts(pid)
+    
+    def getUserIllustList_nextPage(self, next_url: str) -> dict:
+        next = self.__api.parse_qs(next_url)
+        return self.__api.user_illusts(user_id=next["user_id"], offset=next["offset"])
     
     def downloadIllust(self, url: str, path: str=os.path.curdir, name: str=None) -> bool:
         return self.__api.download(url=url, path=path, name=name)

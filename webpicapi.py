@@ -1,3 +1,4 @@
+#! /bin/python3
 
 # libs
 from urllib3 import PoolManager
@@ -6,7 +7,7 @@ import ntpath
 import urllib.parse
 import json
 from enum import IntEnum
-from pixivpy3 import *
+from ApiManager import *
 
 
 # public functions
@@ -21,33 +22,47 @@ def getUrlSource(url) -> str:
     str_data = resp.data.decode('utf-8')
     return str_data
 
-def downloadUrl(url, dest_filepath = None):
+def downloadUrl(url, dest_filepath = os.path.curdir):
     """download url to dest_filepath"""
     
+    # check url
     if len(url) <= 0:
         return
     
-    dir = os.getcwd()
-    filename = ""
+    # get dir & filrname from dest_filepath
+    dir, filename = ntpath.split(dest_filepath)
     
-    # use original filename in url if user did not provide one in dest_filepath
-    if dest_filepath == None:
+    # no filename, use filename from url
+    if filename == None or len(filename) <= 0: 
         p = urllib.parse.urlparse(url)
         u_dir, u_filename = ntpath.split(p.path)
         filename = u_filename
-    # user provided dest_filepath
+    # has filename but no dir
+    elif dir == None or len(dir) <= 0:
+        return
+    # has filename & dir
     else:
-        tmp_dir,tmp_filename = ntpath.split(dest_filepath)
-        # only continue if dest_filepath is a valid filepath (w/ complete dir & filename)
-        if len(tmp_filename) > 0 and len(tmp_dir) > 0:
-            dir = tmp_dir
-            filename = tmp_filename
-    
-    # download file
-    resp = PoolManager().request("GET", url)
-    file = open(dir+'/'+filename, "wb")
-    file.write(resp.data)
-    file.close()
+        # download file
+        resp = PoolManager().request("GET", url)
+        file = open(dir+'/'+filename, "wb")
+        file.write(resp.data)
+        file.close()
+
+def findFirstNonNum(s: str, start_idx: int = 0) -> int:
+    """Find the first non numberic character of input string from start_idx, return index"""
+    while start_idx < len(s):
+        if not s[start_idx].isnumeric():
+            return start_idx
+        start_idx += 1
+    return start_idx
+
+def space2lowline(s: str) -> str:
+    """Convert all spaces \' \' in input string to lowline \'_\' and return as a new string"""
+    l = str(s).split(' ')
+    output = ""
+    for i in l:
+        output += i + '_'
+    return output[:-1]
 
 
 # WebPicType const Table
@@ -202,38 +217,46 @@ class ArtistInfo:
         return self.__twitter_urls
     
     # helper functions
-    def __analyzeInfo_pixiv(self, uid: int, api: AppPixivAPI):
+    def __analyzeInfo_pixiv(self, url: str):
+        # get uid from url
+        uid = url[url.rfind('/')+1:]
+        
+        # setup api instance
+        api: PixivAPI = PixivAPI.instance()
+        
         # get user_res as python dict
-        user_res = api.user_detail(uid)
+        user_res = api.getUserDetail(uid)
         
         # set artist name
-        self.__artist_names = user_res["user"]["name"]
+        self.__artist_names.append(user_res["user"]["name"])
         
         # set artist pixiv url
-        self.__pixiv_urls = "https://pixiv.net/users"+str(user_res["user"]["id"])
+        self.__pixiv_urls.append("https://pixiv.net/users/"+str(user_res["user"]["id"]))
         
         # set artist twitter url (if has one)
         possible_url = user_res["profile"]["twitter_url"]
-        if len(possible_url) > 0: # user has twitter url in profile section
-            self.__twitter_urls = possible_url
+        # user has twitter url in profile section
+        if possible_url != None and len(possible_url) > 0:
+            self.__twitter_urls.append(possible_url)
         else: # try to find twitter url from comment
-            possible_url = user_res["user"]["comment"]
+            possible_url = str(user_res["user"]["comment"])
             cur = possible_url.find("twitter.com/")
-            if cur == -1:
-                pass
-            cur += 12
-            cur2 = cur
-            while (
-                possible_url[cur2].isalpha() or
-                possible_url[cur2].isnumeric() or
-                possible_url[cur2] == '_'
-                ): 
-                cur2 += 1
-            
-            if cur2 <= len(possible_url):
-                self.__twitter_urls = "https://twitter.com/" + possible_url[cur:cur2]
+            if cur != -1:
+                cur += 12
+                cur2 = cur
+                while (
+                    possible_url[cur2].isalpha() or
+                    possible_url[cur2].isnumeric() or
+                    possible_url[cur2] == '_'
+                    ): 
+                    cur2 += 1
+                    if cur2 >= len(possible_url):
+                        break
+                
+                if cur2 <= len(possible_url):
+                    self.__twitter_urls.append("https://twitter.com/" + possible_url[cur:cur2])
     
-    def __analyzeInfo_twitter(self, url):
+    def __analyzeInfo_twitter(self, url: str):
         pass
     
     def __analyzeInfo_danbooru(self, url: str):
@@ -360,10 +383,10 @@ class ArtistInfo:
             )
 
     
-    def __analyzeInfo_weibo(self, url):
+    def __analyzeInfo_weibo(self, url: str):
         pass
     
-    def __analyzeInfo_ehentai(self, url):
+    def __analyzeInfo_ehentai(self, url: str):
         pass
     
 
@@ -416,15 +439,15 @@ class PixivPic(WebPic):
     
     # private variables
     __parent_child: ParentChild = ParentChild.UNKNOWN
-    __file_url: str = ""
-    __filename: str = ""
+    __file_url: list = []
+    __filename: list = []
     __src_url: str = ""
     __has_artist_flag: bool = False
     __artist_info: ArtistInfo = None
     __tags: list = []
-    
+
     # api handles
-    __api: AppPixivAPI = None
+    __api: PixivAPI = None
     
     # constructor
     def __init__(self, url: str, super_class: WebPic = None):
@@ -432,87 +455,111 @@ class PixivPic(WebPic):
         # input url isn't a pixiv url
         if WebPicTypeMatch(self.getWebPicType(), WebPicType.PIXIV) == False:
             raise ValueError("Wrong url input. Input url must be under domain of \"pixiv.net\".")
+        self.__api = PixivAPI.instance()
         self.__analyzeUrl()
     
     # clear obj
     def clear(self):
         super(PixivPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
-        self.__file_url = 0
-        self.__filename = 0
+        self.__file_url.clear()
+        self.__filename.clear()
         self.__src_url = 0
         self.__has_artist_flag = False
         if self.__artist_info != None:
             self.__artist_info.clear()
         self.__tags.clear()
+        self.__api = None
     
     # private helper function
     def __analyzeUrl(self):
-        # determine ParentChild
-        cur = self.getUrl().find("/posts") + 6
+        cur = 0
+        url = self.getUrl()
+        j_dict = {}
+        pid = 0
         
-        # determine ParentChild status
-        if cur == -1:
-            self.__parent_child = ParentChild.UNKNOWN
-        elif self.getUrl()[cur] == '/':
-            self.__parent_child = ParentChild.CHILD
-        else:
+        # determine ParentChild status & grab pid
+        if "/users/" in url:
             self.__parent_child = ParentChild.PARENT
+            cur = url.rfind('/')+1
+            pid = int(url[cur:findFirstNonNum(url, cur)])
+        elif "/member.php" in url:
+            self.__parent_child = ParentChild.PARENT
+            cur = url.find("member.php?id=") + 14
+            pid = int(url[cur:findFirstNonNum(url, cur)])
+        elif "/artworks/" in url:
+            self.__parent_child = ParentChild.CHILD
+            cur = url.rfind('/')+1
+            pid = int(url[cur:findFirstNonNum(url, cur)])
+        elif "/member_illust.php" in url:
+            self.__parent_child = ParentChild.CHILD
+            cur = url.find("member_illust.php?id=") + 21
+            pid = int(url[cur:findFirstNonNum(url, cur)])
+        elif "pximg.net/" in url:
+            self.__parent_child = ParentChild.CHILD
+            parse1 = urllib.parse.urlparse(url)
+            parse2 = ntpath.split(parse1.path())
+            cur = parse2[1].find('/')
+            pid = int(parse2[1][cur:parse2[1].rfind("_p")])
+        else:
+            self.__parent_child = ParentChild.UNKNOWN
         
-        # get url source
-        src = getUrlSource(self.getUrl())
-        
-        # whether has artist
+        # check for bad url
         if self.isChild():
-            cur = src.find("artist-tag-list")
-            if cur != -1:
-                cur = src.find("class=\"wiki-link\"", cur)
+            j_dict = self.__api.getIllustDetail(pid)
         elif self.isParent():
-            cur = src.find("artist-excerpt-link")
-        # found artist
-        if cur != -1:
-            cur = src.find("href=\"", cur) + 6
-            tmp_url = src[cur:src.find('\"', cur)]
-            tmp_url = WebPicType2DomainStr(self.getWebPicType()) + tmp_url
-            # has artist
-            self.__has_artist_flag = True
-            # initialize ArtistInfo
-            self.__artist_info = ArtistInfo(self.getWebPicType(), tmp_url)
+            j_dict = self.__api.getUserDetail(pid)
+        else:
+            return
+        if "error" in j_dict:
+            return
         
-        # finding file_url & filename
-        cur = src.find("post-info-size")
-        if cur != -1: # found file_url
-            cur = src.find("href=\"", cur) + 6
-            # set file url
-            self.__file_url = src[cur:src.find('\"', cur)]
-            # set filename
-            parse1 = urllib.parse.urlparse(self.__file_url)
-            parse2 = ntpath.split(parse1.path)
-            self.__filename = parse2[1]
+        # whether has artist & init ArtistInfo
+        tmp_str = ""
+        if self.isChild():
+            # find parent
+            parent_pid = j_dict["illust"]["user"]["id"]
+            tmp_dict = self.__api.getUserDetail(parent_pid)
+            if "error" not in tmp_dict:
+                self.__has_artist_flag = True
+                tmp_str = "https://pixiv.net/users/" + str(parent_pid)
+                self.__artist_info = ArtistInfo(WebPicType.PIXIV, tmp_str)
+        elif self.isParent():
+            self.__has_artist_flag = True
+            tmp_str = "https://pixiv.net/users/" + str(pid)
+            self.__artist_info = ArtistInfo(WebPicType.PIXIV, tmp_str)
+        
+        if self.isChild():
+            # finding file_url & filename
+            single_ori_url = j_dict["illust"]["meta_single_page"]
+            if single_ori_url != None and len(single_ori_url) > 0:
+                self.__file_url.append(single_ori_url["original_image_url"])
+                parse1 = urllib.parse.urlparse(self.__file_url[-1])
+                parse2 = ntpath.split(parse1.path)
+                self.__filename.append(parse2[1])
+            else:
+                for img in j_dict["illust"]["meta_pages"]:
+                    self.__file_url.append(img["image_urls"]["original"])
+                    parse1 = urllib.parse.urlparse(self.__file_url[-1])
+                    parse2 = ntpath.split(parse1.path)
+                    self.__filename.append(parse2[1])
+                
+            # get tags
+            for item in j_dict["illust"]["tags"]:
+                self.__tags.append(space2lowline(item["name"]))
+                self.__tags.append(space2lowline(item["translated_name"]))
         
         # finding src_url
-        cur = src.find("post-info-source", cur)
-        if cur != -1: # found source
-            cur = src.find("href=\"", cur) + 6
-            # set src_url
-            self.__src_url = src[cur:src.find('\"', cur)]
-        
-        # get tags
-        cur = 0
-        while cur > -1:
-            cur = src.find("data-tag-name=\"", cur)
-            if cur < 0:
-                break
-            cur += 15
-            tmp = src[cur:src.find('\"', cur)]
-            self.__tags.append(tmp)
-            cur += 3
+        if self.isChild():
+            self.__src_url = "https://pixiv.net/artworks/" + str(j_dict["illust"]["id"])
+        elif self.isParent():
+            self.__src_url = self.__artist_info.getUrl_pixiv()
     
     # getters 
-    def getFileUrl(self) -> str:
+    def getFileUrl(self) -> list:
         return self.__file_url
     
-    def getFileName(self) -> str:
+    def getFileName(self) -> list:
         return self.__filename
     
     def getSrcUrl(self) -> str:
@@ -536,27 +583,33 @@ class PixivPic(WebPic):
     def getParentChildStatus(self) -> ParentChild:
         return self.__parent_child
     
-    def downloadPic(self, dest_filepath = None):
-        downloadUrl(self.__file_url, dest_filepath)
+    def downloadPic(self, dest_filepath = os.path.curdir):
+        if self.isChild():
+            for url in self.__file_url:
+                path, name = ntpath.split(dest_filepath)
+                self.__api.downloadIllust(url=url, path=path)
     
     def getChildrenUrls(self) -> list:
+        """Get all children urls of a parent"""
+        
         # only process if current obj is parent
         if not self.isParent():
             return []
         
-        # get url source
-        src = getUrlSource(self.getUrl())
-        
-        # find post id from src & build post url w/ it
         output = []
-        cur = 0
-        while cur != -1:
-            cur = src.find("data-id=\"", cur)
-            if cur == -1:
-                break
-            cur += 9
-            post_id = src[cur:src.find('\"', cur)]
-            output.append("https://"+WebPicType2DomainStr(WebPicType.DANBOORU)+"/posts/"+post_id)
+        
+        # get user illustration list
+        tmp_str = self.__artist_info.getUrl_pixiv()[0]
+        pid = int(tmp_str[tmp_str.rfind('/')+1:])
+        
+        # get all illustrations of this user
+        j_dict = self.__api.getUserIllustList(pid)
+        while "next_url" in j_dict:
+            for item in j_dict["illusts"]:
+                output.append("https://pixiv.net/artworks/"+str(item["id"]))
+            if j_dict["next_url"] == None:
+                return output
+            j_dict = self.__api.getUserIllustList_nextPage(j_dict["next_url"])
         
         return output
 
