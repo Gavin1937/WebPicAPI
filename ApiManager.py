@@ -50,7 +50,11 @@ apitoken_template = """
         \"expires_in\": 0
     },
     \"twitter_token\": {
-        
+        \"api_key\": \"\",
+        \"api_secret_key\": \"\",
+        \"bearer_token\": \"\",
+        \"access_token\": \"\",
+        \"access_token_secret\": \"\"
     }
 }
 """
@@ -119,8 +123,37 @@ class PixivAPI:
         next = self.__api.parse_qs(next_url)
         return self.__api.user_illusts(user_id=next["user_id"], offset=next["offset"])
     
+    def searchIllust(
+            self, word,
+            search_target='partial_match_for_tags',
+            sort='date_desc', duration=None,
+            start_date=None, end_date=None,
+            filter='for_ios', offset=None):
+        return self.__api.search_illust(
+                word, search_target=search_target,
+                sort=sort, duration=duration,
+                start_date=start_date, end_date=end_date,
+                filter=filter, offset=offset)
+    
+    def searchUser(
+            self, word,
+            sort='date_desc',
+            duration=None,
+            filter='for_ios',
+            offset=None):
+        return self.__api.search_user(
+                word, sort=sort,
+                duration=duration,
+                filter=filter, offset=offset)
+    
     def downloadIllust(self, url: str, path: str=os.path.curdir, name: str=None) -> bool:
         return self.__api.download(url=url, path=path, name=name)
+    
+    def followUser(self, pid: int):
+        self.__api.user_follow_add(user_id=pid)
+    
+    def unfollowUser(self, pid: int):
+        self.__api.user_follow_delete(user_id=pid)
     
     def api(self) -> AppPixivAPI:
         return self.__api

@@ -513,6 +513,8 @@ class PixivPic(WebPic):
             return
         if "error" in j_dict:
             return
+        elif j_dict["illust"]["visible"] == False:
+            return
         
         # whether has artist & init ArtistInfo
         tmp_str = ""
