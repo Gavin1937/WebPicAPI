@@ -61,10 +61,12 @@ apitoken_template = """
 
 
 # libs
+from collections import UserDict
 import os
 import json
 # api libs
 from pixivpy3 import *
+import tweepy
 
 
 @Singleton
@@ -172,5 +174,123 @@ class PixivAPI:
 
 
 
+@Singleton
+class TwitterAPI:
+    """Singleton class to create & manage tweepy api instance and auth"""
+    
+    # private members
+    __api: tweepy.API = None
+    __auto_refresh_flag: bool = False
+    
+    # constructor
+    def __init__(self):
+        apitoken_dict = {}
+        # check whether apitoken.json exist
+        if not os.path.isfile("./apitoken.json"): # file does not exist, create a new one
+            file = open("./apitoken.json", 'w')
+            file.write(apitoken_template)
+            file.close()
+        # file exist
+        file = open("./apitoken.json", 'r')
+        apitoken_dict = json.load(file)
+        file.close()
+        
+        # checking apitoken.json
+        while not self.__has_valid_twitter_token(apitoken_dict): # prompt user to fill in tokens
+            input("Please fill in all values under \"twitter_token\" in \"apitoken.json\" under current directory.\nPress any key to refresh.\n\n")
+            file = open("./apitoken.json", 'r')
+            apitoken_dict = json.load(file)
+            file.close()
+        
+        # authorize api
+        try:
+            auth = tweepy.OAuthHandler(
+                consumer_key=apitoken_dict["twitter_token"]["api_key"],
+                consumer_secret=apitoken_dict["twitter_token"]["api_secret_key"]
+            )
+            auth.set_access_token(
+                apitoken_dict["twitter_token"]["access_token"],
+                apitoken_dict["twitter_token"]["access_token_secret"]
+            )
+            self.__api: tweepy.API = tweepy.API(auth)
+        except Exception as err:
+            self.__api = None
+            raise err
+        
+        self.__autoRefreshing_token()
+    
+    def setAutoRefreshToken(self, flag):
+        """Whether Enable or Disable auto refreshing pixiv api token"""
+        self.__auto_refresh_flag = flag
+    
+    # api features
+    def getStatusJson(self, status_id: str) -> dict:
+        return self.__api.get_status(status_id, tweet_mode="extended")._json
+    
+    def getUserJson(self, user_id: int = None, screen_name: str = None) -> dict:
+        return self.__api.get_user(user_id=user_id, screen_name=screen_name)._json
+    
+    def getUserTimeline(
+            self, user_id: int = None,
+            screen_name: str = None,
+            count: int = None
+        ) -> list:
+        
+        output = []
+        counter = 0
+        for item in tweepy.Cursor(
+                    self.__api.user_timeline,
+                    user_id=user_id,
+                    screen_name=screen_name,
+                    tweet_mode="extended", count=1).items():
+            if counter >= count:
+                break
+            counter += 1
+            output.append(item._json)
+        
+        return output
+    
+    # def getUserIllustList_nextPage(self, next_url: str) -> dict:
+    #     next = self.__api.parse_qs(next_url)
+    #     return self.__api.user_illusts(user_id=next["user_id"], offset=next["offset"])
+    
+    # def searchStatus(self, screen_name: str = None, status_id: str = None):
+    #     j_res = self.__api.user_timeline(screen_name=screen_name, )
+    
+    # def searchUser(
+    #         self, word,
+    #         sort='date_desc',
+    #         duration=None,
+    #         filter='for_ios',
+    #         offset=None):
+    #     return self.__api.search_user(
+    #             word, sort=sort,
+    #             duration=duration,
+    #             filter=filter, offset=offset)
+    
+    # def downloadIllust(self, url: str, path: str=os.path.curdir, name: str=None) -> bool:
+    #     return self.__api.download(url=url, path=path, name=name)
+    
+    # def followUser(self, pid: int):
+    #     self.__api.user_follow_add(user_id=pid)
+    
+    # def unfollowUser(self, pid: int):
+    #     self.__api.user_follow_delete(user_id=pid)
+    
+    def api(self) -> AppPixivAPI:
+        return self.__api
+    
+    # helper functions
+    def __has_valid_twitter_token(self, apitoken_dict: dict) -> bool:
+        return (
+            len(apitoken_dict["twitter_token"]["api_key"]) > 0 and
+            len(apitoken_dict["twitter_token"]["api_secret_key"]) > 0 and
+            len(apitoken_dict["twitter_token"]["bearer_token"]) > 0 and
+            len(apitoken_dict["twitter_token"]["access_token"]) > 0 and
+            len(apitoken_dict["twitter_token"]["access_token_secret"]) > 0 
+        )
+    
+    def __autoRefreshing_token(self):
+        pass
 
 

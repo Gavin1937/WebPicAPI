@@ -1,6 +1,7 @@
 #! /bin/python3
 
 # libs
+from re import T
 from urllib3 import PoolManager
 import os
 import ntpath
@@ -257,7 +258,53 @@ class ArtistInfo:
                     self.__twitter_urls.append("https://twitter.com/" + possible_url[cur:cur2])
     
     def __analyzeInfo_twitter(self, url: str):
-        pass
+        # get screen_name from url
+        parse1 = urllib.parse.urlparse(url)
+        parse2 = ntpath.split(parse1.path)
+        screen_name = parse2[1]
+        
+        # setup api instance
+        api: TwitterAPI = TwitterAPI.instance()
+        
+        # get user_res as python dict
+        user_res = api.getUserJson(screen_name=screen_name)
+        
+        # set artist name
+        self.__artist_names.append(user_res["name"])
+        self.__artist_names.append(user_res["screen_name"])
+        
+        # set artist pixiv url (if has one)
+        urls_founded: list = user_res["entities"]["url"]["urls"]
+        for item in user_res["entities"]["description"]["urls"]:
+            urls_founded.append(item)
+        description_str: str = user_res["description"]
+        # search through all urls founded in user_res
+        for url in urls_founded:
+            if "pixiv.net" in url["expanded_url"]:
+                self.__pixiv_urls.append(url["expanded_url"])
+        # search in description_str
+        cur = 0
+        pid = ""
+        while cur != -1:
+            cur = description_str.find("pixiv.net", cur)
+            if cur == -1:
+                break
+            # found pixiv domain, searching for pid
+            cur += 9
+            old_cur = cur
+            find_res = [(description_str.find("/users/", cur),7), (description_str.find("/member.php?id=", cur),15)]
+            for i,off in find_res:
+                if i != -1:
+                    cur = i + off
+                    break
+            if cur > old_cur: # found id
+                pid = description_str[cur:findFirstNonNum(description_str, cur)]
+                break
+        if len(pid) > 0: # found pid, set __pixiv_urls
+            self.__pixiv_urls = "https://pixiv.net/users/" + pid
+        
+        # set artist twitter url
+        self.__twitter_urls = url
     
     def __analyzeInfo_danbooru(self, url: str):
         cur = 0
@@ -455,7 +502,7 @@ class PixivPic(WebPic):
         # input url isn't a pixiv url
         if WebPicTypeMatch(self.getWebPicType(), WebPicType.PIXIV) == False:
             raise ValueError("Wrong url input. Input url must be under domain of \"pixiv.net\".")
-        self.__api = PixivAPI.instance()
+        self.__api: PixivAPI = PixivAPI.instance()
         self.__analyzeUrl()
     
     # clear obj
@@ -616,6 +663,181 @@ class PixivPic(WebPic):
                 return output
             # move to next page
             j_dict = self.__api.getUserIllustList_nextPage(j_dict["next_url"])
+        
+        return output
+
+
+class TwitterPic(WebPic):
+    """handle artist identifications & downloading for twitter"""
+    
+    # private variables
+    __parent_child: ParentChild = ParentChild.UNKNOWN
+    __file_url: list = []
+    __filename: list = []
+    __src_url: str = ""
+    __has_artist_flag: bool = False
+    __artist_info: ArtistInfo = None
+    __tags: list = []
+
+    # api handles
+    __api: TwitterAPI = None
+    
+    # constructor
+    def __init__(self, url: str, super_class: WebPic = None):
+        super(TwitterPic, self).__init__(url)
+        # input url isn't a pixiv url
+        if WebPicTypeMatch(self.getWebPicType(), WebPicType.TWITTER) == False:
+            raise ValueError("Wrong url input. Input url must be under domain of \"twitter.com\".")
+        self.__api: TwitterAPI = TwitterAPI.instance()
+        self.__analyzeUrl()
+    
+    # clear obj
+    def clear(self):
+        super(TwitterPic, self).clear()
+        self.__parent_child = ParentChild.UNKNOWN
+        self.__file_url.clear()
+        self.__filename.clear()
+        self.__src_url = 0
+        self.__has_artist_flag = False
+        if self.__artist_info != None:
+            self.__artist_info.clear()
+        self.__tags.clear()
+        self.__api = None
+    
+    # private helper function
+    def __analyzeUrl(self):
+        cur = 0
+        url = self.getUrl()
+        j_dict = {}
+        screen_name = ""
+        status_id = ""
+        
+        # determine ParentChild status & grab screen_name, status_id
+        parse1 = urllib.parse.urlparse(url)
+        cur = parse1.path.find("/status/")
+        if cur != -1: # found /status/ in url
+            self.__parent_child = ParentChild.CHILD
+            screen_name = parse1.path[:cur]
+            status_id = parse1.path[cur+8:]
+        elif cur == -1: # not found /status in url
+            self.__parent_child = ParentChild.PARENT
+            screen_name = parse1.path
+        else:
+            self.__parent_child = ParentChild.UNKNOWN
+        if len(screen_name) <= 0 and len(status_id) <= 0:
+            raise ValueError(f"Unable to determine ParentChild base on URL{url}.")
+        
+        # check for bad url
+        try:
+            if self.isChild():
+                j_dict = self.__api.getStatusJson(status_id=status_id)
+                screen_name = j_dict["user"]["screen_name"]
+            elif self.isParent():
+                j_dict = self.__api.getUserJson(screen_name=screen_name)
+            else:
+                raise ValueError(f"Unable to fetch data from URL{url}")
+        except Exception as err:
+            raise err
+        
+        
+        # whether has artist & init ArtistInfo
+        tmp_str = ""
+        if self.isChild():
+            try:
+                self.__api.getUserJson(screen_name=screen_name)
+            except Exception as err:
+                raise err
+            self.__has_artist_flag = True
+            tmp_str = "https://twitter.com/" + screen_name
+            self.__artist_info = ArtistInfo(WebPicType.TWITTER, tmp_str)
+        elif self.isParent():
+            self.__has_artist_flag = True
+            tmp_str = "https://twitter.com/" + screen_name
+            self.__artist_info = ArtistInfo(WebPicType.TWITTER, tmp_str)
+        
+        if self.isChild():
+            # finding file_url & filename
+            if "entities" in j_dict and "media" in j_dict["entities"]:
+                for media in j_dict["entities"]["media"]:
+                    if len(media["media_url"]) > 0:
+                        self.__file_url.append(media["media_url"])
+                        parse1 = urllib.parse.urlparse(self.__file_url[:-1])
+                        parse2 = ntpath.split(parse1.path)
+                        self.__filename.append(parse2[1])
+            
+            # get tags
+            self.__tags.append(space2lowline(screen_name))
+            for item in j_dict["entities"]["hashtags"]:
+                self.__tags.append(item["text"])
+        
+        # finding src_url
+        if self.isChild():
+            self.__src_url = "https://twitter.com/" + screen_name + "/status/" + status_id
+        elif self.isParent():
+            self.__src_url = "https://twitter.com/" + screen_name
+    
+    # getters 
+    def getFileUrl(self) -> list:
+        return self.__file_url
+    
+    def getFileName(self) -> list:
+        return self.__filename
+    
+    def getSrcUrl(self) -> str:
+        return self.__src_url
+    
+    def hasArtist(self) -> bool:
+        return self.__has_artist_flag
+    
+    def getArtistInfo(self) -> ArtistInfo:
+        return self.__artist_info
+    
+    def getTags(self) -> list:
+        return self.__tags
+    
+    def isParent(self) -> bool:
+        return bool(self.__parent_child == ParentChild.PARENT)
+    
+    def isChild(self) -> bool:
+        return bool(self.__parent_child == ParentChild.CHILD)
+    
+    def getParentChildStatus(self) -> ParentChild:
+        return self.__parent_child
+    
+    def downloadPic(self, dest_filepath = os.path.curdir):
+        if self.isChild():
+            for url in self.__file_url:
+                path, name = ntpath.split(dest_filepath)
+                if not os.path.isdir(path): # oath is invalid
+                    path = os.path.curdir
+                if len(name) <= 0: # no name specified
+                    parse1 = urllib.parse.urlparse(self.__file_url)
+                    parse2 = ntpath.split(parse1.path)
+                    name = parse2[1]
+                downloadUrl(self.__file_url+":orig", path+name)
+    
+    def getChildrenUrls(self, max_num: int = 30) -> list:
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
+        
+        # only process if current obj is parent
+        if not self.isParent():
+            return []
+        
+        # get user illustration list
+        tmp_str = self.__artist_info.getUrl_twitter()[0]
+        
+        # get all illustrations of this user
+        j_list = self.__api.getUserTimeline(screen_name=self.__artist_info.getArtistNames()[1], count=max_num)
+        counter = 0
+        output = []
+        for stat in j_list:
+            output.append(
+                "https://twitter.com/" +
+                self.__artist_info.getArtistNames()[1] +
+                "/status/" + stat["id_str"])
+            if counter >= max_num:
+                break
+            counter += 1
         
         return output
 
