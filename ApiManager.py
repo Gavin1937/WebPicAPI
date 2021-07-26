@@ -50,8 +50,8 @@ apitoken_template = """
         \"expires_in\": 0
     },
     \"twitter_token\": {
-        \"api_key\": \"\",
-        \"api_secret_key\": \"\",
+        \"consumer_api_key\": \"\",
+        \"consumer_secret\": \"\",
         \"bearer_token\": \"\",
         \"access_token\": \"\",
         \"access_token_secret\": \"\"
@@ -63,6 +63,7 @@ apitoken_template = """
 # libs
 from collections import UserDict
 import os
+import shutil
 import json
 # api libs
 from pixivpy3 import *
@@ -82,9 +83,12 @@ class PixivAPI:
         apitoken_dict = {}
         # check whether apitoken.json exist
         if not os.path.isfile("./apitoken.json"): # file does not exist, create a new one
-            file = open("./apitoken.json", 'w')
-            file.write(apitoken_template)
-            file.close()
+            if not os.path.isfile("./apitoken.json.bak"): # no backup file
+                file = open("./apitoken.json", 'w')
+                file.write(apitoken_template)
+                file.close()
+            else: # has backup file
+                shutil.copyfile("./apitoken.json.bak", "./apitoken.json")
         # file exist
         file = open("./apitoken.json", 'r')
         apitoken_dict = json.load(file)
@@ -96,6 +100,11 @@ class PixivAPI:
             file = open("./apitoken.json", 'r')
             apitoken_dict = json.load(file)
             file.close()
+        
+        # backup apitoken.json
+        file = open("./apitoken.json.bak", 'w')
+        json.dump(apitoken_dict, file)
+        file.close()
         
         # authorize api
         self.__api = AppPixivAPI()
@@ -199,9 +208,12 @@ class TwitterAPI:
         apitoken_dict = {}
         # check whether apitoken.json exist
         if not os.path.isfile("./apitoken.json"): # file does not exist, create a new one
-            file = open("./apitoken.json", 'w')
-            file.write(apitoken_template)
-            file.close()
+            if not os.path.isfile("./apitoken.json.bak"): # no backup file
+                file = open("./apitoken.json", 'w')
+                file.write(apitoken_template)
+                file.close()
+            else: # has backup file
+                shutil.copyfile("./apitoken.json.bak", "./apitoken.json")
         # file exist
         file = open("./apitoken.json", 'r')
         apitoken_dict = json.load(file)
@@ -214,11 +226,16 @@ class TwitterAPI:
             apitoken_dict = json.load(file)
             file.close()
         
+        # backup apitoken.json
+        file = open("./apitoken.json.bak", 'w')
+        json.dump(apitoken_dict, file)
+        file.close()
+        
         # authorize api
         try:
             auth = tweepy.OAuthHandler(
-                consumer_key=apitoken_dict["twitter_token"]["api_key"],
-                consumer_secret=apitoken_dict["twitter_token"]["api_secret_key"]
+                consumer_key=apitoken_dict["twitter_token"]["consumer_api_key"],
+                consumer_secret=apitoken_dict["twitter_token"]["consumer_secret"]
             )
             auth.set_access_token(
                 apitoken_dict["twitter_token"]["access_token"],
@@ -228,8 +245,6 @@ class TwitterAPI:
         except Exception as err:
             self.__api = None
             raise err
-        
-        self.__autoRefreshing_token()
     
     def setAutoRefreshToken(self, flag):
         """Whether Enable or Disable auto refreshing pixiv api token"""
@@ -271,47 +286,45 @@ class TwitterAPI:
         
         return output
     
-    # def getUserIllustList_nextPage(self, next_url: str) -> dict:
-    #     next = self.__api.parse_qs(next_url)
-    #     return self.__api.user_illusts(user_id=next["user_id"], offset=next["offset"])
+    def searchTweets(self, keyword: str, max_count: int = 10):
+        output = []
+        for item in tweepy.Cursor(self.__api.search, q=keyword, tweet_mode="extended").items(max_count):
+            if item._json not in output:
+                output.append(item._json)
+            break
+        return output
     
-    # def searchStatus(self, screen_name: str = None, status_id: str = None):
-    #     j_res = self.__api.user_timeline(screen_name=screen_name, )
+    def searchUsers(self, keyword: str, max_count: int = 10):
+        output = []
+        for item in tweepy.Cursor(self.__api.search_users, q=keyword).items(max_count):
+            if item._json not in output:
+                output.append(item._json)
+            break
+        return output
     
-    # def searchUser(
-    #         self, word,
-    #         sort='date_desc',
-    #         duration=None,
-    #         filter='for_ios',
-    #         offset=None):
-    #     return self.__api.search_user(
-    #             word, sort=sort,
-    #             duration=duration,
-    #             filter=filter, offset=offset)
+    def followUser(self, screen_name: str):
+        try:
+            self.__api.create_friendship(screen_name=screen_name)
+        except Exception as err:
+            raise err
     
-    # def downloadIllust(self, url: str, path: str=os.path.curdir, name: str=None) -> bool:
-    #     return self.__api.download(url=url, path=path, name=name)
+    def unfollowUser(self, screen_name: str):
+        try:
+            self.__api.destroy_friendship(screen_name=screen_name)
+        except Exception as err:
+            raise err
     
-    # def followUser(self, pid: int):
-    #     self.__api.user_follow_add(user_id=pid)
-    
-    # def unfollowUser(self, pid: int):
-    #     self.__api.user_follow_delete(user_id=pid)
-    
-    def api(self) -> AppPixivAPI:
+    def api(self) -> tweepy.API:
         return self.__api
     
     # helper functions
     def __has_valid_twitter_token(self, apitoken_dict: dict) -> bool:
         return (
-            len(apitoken_dict["twitter_token"]["api_key"]) > 0 and
-            len(apitoken_dict["twitter_token"]["api_secret_key"]) > 0 and
+            len(apitoken_dict["twitter_token"]["consumer_api_key"]) > 0 and
+            len(apitoken_dict["twitter_token"]["consumer_secret"]) > 0 and
             len(apitoken_dict["twitter_token"]["bearer_token"]) > 0 and
             len(apitoken_dict["twitter_token"]["access_token"]) > 0 and
             len(apitoken_dict["twitter_token"]["access_token_secret"]) > 0 
         )
-    
-    def __autoRefreshing_token(self):
-        pass
 
 

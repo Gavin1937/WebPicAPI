@@ -6,6 +6,7 @@
 # files
 main.py
 *.json
+*.bak
 *.jpg
 *.png
 *.bmp
