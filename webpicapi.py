@@ -75,6 +75,15 @@ def rmListDuplication(l: list) -> list:
             output.append(item)
     return output
 
+def isEmptyWebPic(webpic) -> bool:
+    return (
+        len(webpic.getFileUrl()) == 0 and
+        len(webpic.getFileName()) == 0 and
+        webpic.getSrcUrl() == 0 and
+        webpic.hasArtist() == False and
+        len(webpic.getTags()) == 0
+    )
+
 # WebPicType const Table
 # Bit Table:
 # 0b     1         1       1       1         1         1         1       1
@@ -285,10 +294,12 @@ class ArtistInfo:
         # set artist pixiv url (if has one)
         # get all urls existing urls
         urls_founded: list = []
-        for item in user_res["entities"]["url"]["urls"]:
-            urls_founded.append(item["expanded_url"])
-        for item in user_res["entities"]["description"]["urls"]:
-            urls_founded.append(item["expanded_url"])
+        if "url" in user_res["entities"]:
+            for item in user_res["entities"]["url"]["urls"]:
+                urls_founded.append(item["expanded_url"])
+        if "description" in user_res["entities"]:
+            for item in user_res["entities"]["description"]["urls"]:
+                urls_founded.append(item["expanded_url"])
         # get urls from description
         description_str: str = user_res["description"]
         cur = 0
@@ -310,9 +321,9 @@ class ArtistInfo:
         for loc_url in urls_founded:
             try:
                 req = requests.get(loc_url)
+                final_urls.append(req.url)
             except Exception as err:
                 pass
-            final_urls.append(req.url)
         final_urls = rmListDuplication(final_urls)
         # search through all urls and finding pixiv id
         for loc_url in final_urls:
@@ -580,11 +591,11 @@ class PixivPic(WebPic):
         elif self.isParent():
             j_dict = self.__api.getUserDetail(pid)
         else:
-            return
+            raise ValueError(f"Cannot determine parent child state base on url: {self.getUrl()}")
         if "error" in j_dict:
-            return
-        elif j_dict["illust"]["visible"] == False:
-            return
+            raise ValueError(f"Bad url: {self.getUrl()}")
+        elif self.isChild() and j_dict["illust"]["visible"] == False:
+            raise ValueError(f"Bad url: {self.getUrl()}")
         
         # whether has artist & init ArtistInfo
         tmp_str = ""
@@ -673,19 +684,13 @@ class PixivPic(WebPic):
         pid = int(tmp_str[tmp_str.rfind('/')+1:])
         
         # get all illustrations of this user
-        j_dict = self.__api.getUserIllustList(pid)
+        j_list = self.__api.getUserIllustList(pid, max_num)
         counter = 0
         output = []
-        while "next_url" in j_dict:
-            for item in j_dict["illusts"]:
-                output.append("https://pixiv.net/artworks/"+str(item["id"]))
-                counter += 1
-                if counter == max_num:
-                    return output
-            if j_dict["next_url"] == None:
-                return output
-            # move to next page
-            j_dict = self.__api.getUserIllustList_nextPage(j_dict["next_url"])
+        
+        # generate artwork urls
+        for item in j_list:
+            output.append("https://pixiv.net/artworks/"+str(item["id"]))
         
         return output
 
@@ -1102,7 +1107,7 @@ class YanderePic(WebPic):
             tmp_str = tmp_str[:-1] + ']'
             j_dict = json.loads(tmp_str)
         else: # bad url
-            return
+            raise ValueError(f"Cannot process url: {self.getUrl()}")
         
         # whether has artist
         tmp_str = ""
@@ -1351,7 +1356,7 @@ class KonachanPic(WebPic):
         cur = 0
         # ignore bad url from pool
         if "/pool" in self.getUrl() and "var thumb = $(\"hover-thumb\");" in src:
-            return 
+            raise ValueError(f"Bad konachan pool. Url: {self.getUrl()}")
         while cur != -1:
             cur = src.find("Post.register", cur)
             if cur == -1:
@@ -1363,7 +1368,7 @@ class KonachanPic(WebPic):
             tmp_str = tmp_str[:-1] + ']'
             j_dict = json.loads(tmp_str)
         else: # bad url
-            return
+            raise ValueError(f"Cannot process url: {self.getUrl()}")
         
         # whether has artist
         tmp_str = ""

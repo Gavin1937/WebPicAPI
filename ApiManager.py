@@ -118,12 +118,24 @@ class PixivAPI:
     def getUserDetail(self, pid: int) -> dict:
         return self.__api.user_detail(pid)
     
-    def getUserIllustList(self, pid: int) -> dict:
-        return self.__api.user_illusts(pid)
-    
-    def getUserIllustList_nextPage(self, next_url: str) -> dict:
-        next = self.__api.parse_qs(next_url)
-        return self.__api.user_illusts(user_id=next["user_id"], offset=next["offset"])
+    def getUserIllustList(self, pid: int, count: int) -> dict:
+        output: list = []
+        counter = 0
+        cur_page = self.__api.user_illusts(pid)
+        next_url = ""
+        while "next_url" in cur_page:
+            for item in cur_page["illusts"]:
+                output.append(item)
+                counter += 1
+                if counter == count:
+                    return output
+            # reaches end of page
+            if cur_page["next_url"] == None:
+                return output
+            # move to next page
+            next = self.__api.parse_qs(cur_page["next_url"])
+            cur_page = self.__api.user_illusts(user_id=pid, offset=next["offset"])
+        return output
     
     def searchIllust(
             self, word,
@@ -225,13 +237,19 @@ class TwitterAPI:
     
     # api features
     def getStatusJson(self, status_id: str) -> dict:
-        return self.__api.get_status(status_id, tweet_mode="extended")._json
+        try:
+            return self.__api.get_status(status_id, tweet_mode="extended")._json
+        except Exception as err:
+            raise err
     
     def getUserJson(self, user_id: int = None, screen_name: str = None) -> dict:
-        if user_id != None:
-            return self.__api.get_user(user_id=user_id)._json
-        elif screen_name !=None:
-            return self.__api.get_user(screen_name=screen_name)._json
+        try:
+            if user_id != None:
+                return self.__api.get_user(user_id=user_id)._json
+            elif screen_name !=None:
+                return self.__api.get_user(screen_name=screen_name)._json
+        except Exception as err:
+            raise err
     
     def getUserTimeline(
             self, user_id: int = None,
