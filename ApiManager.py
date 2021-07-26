@@ -228,7 +228,10 @@ class TwitterAPI:
         return self.__api.get_status(status_id, tweet_mode="extended")._json
     
     def getUserJson(self, user_id: int = None, screen_name: str = None) -> dict:
-        return self.__api.get_user(user_id=user_id, screen_name=screen_name)._json
+        if user_id != None:
+            return self.__api.get_user(user_id=user_id)._json
+        elif screen_name !=None:
+            return self.__api.get_user(screen_name=screen_name)._json
     
     def getUserTimeline(
             self, user_id: int = None,

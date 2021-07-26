@@ -1,11 +1,14 @@
 #! /bin/python3
 
 # libs
-from re import T
+from re import S, T
+import re
+from typing import final
 from urllib3 import PoolManager
 import os
 import ntpath
 import urllib.parse
+import requests
 import json
 from enum import IntEnum
 from ApiManager import *
@@ -65,6 +68,12 @@ def space2lowline(s: str) -> str:
         output += i + '_'
     return output[:-1]
 
+def rmListDuplication(l: list) -> list:
+    output = []
+    for item in l:
+        if item not in output:
+            output.append(item)
+    return output
 
 # WebPicType const Table
 # Bit Table:
@@ -274,37 +283,51 @@ class ArtistInfo:
         self.__artist_names.append(user_res["screen_name"])
         
         # set artist pixiv url (if has one)
-        urls_founded: list = user_res["entities"]["url"]["urls"]
+        # get all urls existing urls
+        urls_founded: list = []
+        for item in user_res["entities"]["url"]["urls"]:
+            urls_founded.append(item["expanded_url"])
         for item in user_res["entities"]["description"]["urls"]:
-            urls_founded.append(item)
+            urls_founded.append(item["expanded_url"])
+        # get urls from description
         description_str: str = user_res["description"]
-        # search through all urls founded in user_res
-        for url in urls_founded:
-            if "pixiv.net" in url["expanded_url"]:
-                self.__pixiv_urls.append(url["expanded_url"])
-        # search in description_str
         cur = 0
-        pid = ""
         while cur != -1:
-            cur = description_str.find("pixiv.net", cur)
+            cur = description_str.find("https://", cur)
             if cur == -1:
                 break
-            # found pixiv domain, searching for pid
-            cur += 9
+            cur += 8
             old_cur = cur
-            find_res = [(description_str.find("/users/", cur),7), (description_str.find("/member.php?id=", cur),15)]
-            for i,off in find_res:
-                if i != -1:
-                    cur = i + off
+            while description_str[cur] != ' ' or description_str[cur] != '\n':
+                cur += 1
+                if cur >= len(description_str):
                     break
-            if cur > old_cur: # found id
-                pid = description_str[cur:findFirstNonNum(description_str, cur)]
-                break
-        if len(pid) > 0: # found pid, set __pixiv_urls
-            self.__pixiv_urls = "https://pixiv.net/users/" + pid
+            urls_founded.append("https://"+description_str[old_cur:cur])
+        # remove duplicates
+        urls_founded = rmListDuplication(urls_founded)
+        # get final urls after redirection
+        final_urls: list = []
+        for loc_url in urls_founded:
+            try:
+                req = requests.get(loc_url)
+            except Exception as err:
+                pass
+            final_urls.append(req.url)
+        final_urls = rmListDuplication(final_urls)
+        # search through all urls and finding pixiv id
+        for loc_url in final_urls:
+            if "pixiv.net/users/" in loc_url:
+                self.__pixiv_urls.append(loc_url)
+            elif ".fanbox.cc" in loc_url:
+                src = getUrlSource(loc_url)
+                cur = src.find("fanbox/public/images/creator/")
+                if cur == -1:
+                    break
+                cur += 29
+                self.__pixiv_urls.append("https://pixiv.net/users/"+src[cur:src.find("/cover", cur)])
         
         # set artist twitter url
-        self.__twitter_urls = url
+        self.__twitter_urls.append(url)
     
     def __analyzeInfo_danbooru(self, url: str):
         cur = 0
@@ -717,11 +740,11 @@ class TwitterPic(WebPic):
         cur = parse1.path.find("/status/")
         if cur != -1: # found /status/ in url
             self.__parent_child = ParentChild.CHILD
-            screen_name = parse1.path[:cur]
+            screen_name = parse1.path[1:cur]
             status_id = parse1.path[cur+8:]
         elif cur == -1: # not found /status in url
             self.__parent_child = ParentChild.PARENT
-            screen_name = parse1.path
+            screen_name = parse1.path[1:]
         else:
             self.__parent_child = ParentChild.UNKNOWN
         if len(screen_name) <= 0 and len(status_id) <= 0:
@@ -761,7 +784,7 @@ class TwitterPic(WebPic):
                 for media in j_dict["entities"]["media"]:
                     if len(media["media_url"]) > 0:
                         self.__file_url.append(media["media_url"])
-                        parse1 = urllib.parse.urlparse(self.__file_url[:-1])
+                        parse1 = urllib.parse.urlparse(self.__file_url[-1])
                         parse2 = ntpath.split(parse1.path)
                         self.__filename.append(parse2[1])
             
