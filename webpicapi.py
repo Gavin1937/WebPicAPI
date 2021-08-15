@@ -156,7 +156,9 @@ def WebPicType2DomainStr(webpic_type: WebPicType) -> str:
     elif webpic_type == WebPicType.KONACHAN:
         return "konachan.com"
     elif webpic_type == WebPicType.WEIBO:
-        return "weibo.com"
+        # since "www.weibo.com" cannot display status,
+        # we use "m.weibo.cn"
+        return "m.weibo.cn"
     elif webpic_type == WebPicType.EHENTAI:
         return "e-hentai.org"
     else: # Unknown
@@ -174,7 +176,7 @@ def DomainStr2WebPicType(domain_str: str) -> WebPicType:
         return WebPicType.YANDERE
     elif "konachan.com" in domain_str:
         return WebPicType.KONACHAN
-    elif "weibo.com" in domain_str:
+    elif "www.weibo.com" in domain_str or "m.weibo.cn" in domain_str:
         return WebPicType.WEIBO
     elif "e-hentai.org" in domain_str:
         return WebPicType.EHENTAI
@@ -462,11 +464,49 @@ class ArtistInfo:
             self.__artist_names.append(
                 urllib.parse.unquote(tmp_str[cur:tmp_str.find('\"', cur)])
             )
-
     
     def __analyzeInfo_weibo(self, url: str):
-        pass
-    
+        # get user_id from url
+        parse1 = urllib.parse.urlparse(url)
+        parse2 = ntpath.split(parse1.path)
+        user_id = int(parse2[1])
+        
+        # get j_dict
+        j_dict = {}
+        try:
+            src = getUrlSource(f"https://m.weibo.cn/api/container/getIndex?uid={user_id}&type=uid&value={user_id}&containerid=100505{user_id}")
+            j_dict = json.loads(src)
+            if j_dict["ok"] != 1:
+                raise ValueError("Unable to fetch json data from weibo")
+        except Exception as err:
+            raise err
+        
+        # finding urls
+        desc_str = j_dict["data"]["userInfo"]["description"]
+        if "pixiv.net" in desc_str:
+            cur1 = desc_str.find("pixiv.net")
+            cur2 = cur1 + 9
+            while (
+                desc_str[cur2].isalnum() or
+                desc_str[cur2] == '.' or
+                desc_str[cur2] == '?' or
+                desc_str[cur2] == '/'):
+                cur2 += 1
+            self.__pixiv_urls.append("https://www." + desc_str[cur1:cur2])
+        elif "twitter.com" in desc_str:
+            cur1 = desc_str.find("twitter.com")
+            cur2 = cur1 + 9
+            while (
+                desc_str[cur2].isalnum() or
+                desc_str[cur2] == '.' or
+                desc_str[cur2] == '?' or
+                desc_str[cur2] == '/'):
+                cur2 += 1
+            self.__twitter_urls.append("https://www." + desc_str[cur1:cur2])
+        
+        # get artist names
+        self.__artist_names.append(j_dict["data"]["userInfo"]["screen_name"])
+        
     def __analyzeInfo_ehentai(self, url: str):
         pass
     
@@ -579,7 +619,7 @@ class PixivPic(WebPic):
         elif "pximg.net/" in url:
             self.__parent_child = ParentChild.CHILD
             parse1 = urllib.parse.urlparse(url)
-            parse2 = ntpath.split(parse1.path())
+            parse2 = ntpath.split(parse1.path)
             cur = parse2[1].find('/')
             pid = int(parse2[1][cur:parse2[1].rfind("_p")])
         else:
@@ -669,11 +709,20 @@ class PixivPic(WebPic):
     def downloadPic(self, dest_filepath = os.path.curdir):
         if self.isChild():
             for url in self.__file_url:
-                path, name = ntpath.split(dest_filepath)
+                path = ""
+                if os.path.isdir(dest_filepath): # dest_filepath is all path without filename
+                    path = dest_filepath
+                else: # dest_filepath is a path to file or is invalid
+                    # assume dest_filepath is a path to file
+                    path, name = ntpath.split(dest_filepath)
+                    if not os.path.isdir(path): # not specify path, assume dest_filepath is filename
+                        path = os.path.curdir
+                if path[-1] != '/' or path[-1] != '\\':
+                    path += '/'
                 self.__api.downloadIllust(url=url, path=path)
     
     def getChildrenUrls(self, max_num: int = 30) -> list:
-        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls without limit"""
         
         # only process if current obj is parent
         if not self.isParent():
@@ -834,18 +883,30 @@ class TwitterPic(WebPic):
     
     def downloadPic(self, dest_filepath = os.path.curdir):
         if self.isChild():
-            for url in self.__file_url:
-                path, name = ntpath.split(dest_filepath)
-                if not os.path.isdir(path): # oath is invalid
-                    path = os.path.curdir
-                if len(name) <= 0: # no name specified
-                    parse1 = urllib.parse.urlparse(self.__file_url)
-                    parse2 = ntpath.split(parse1.path)
-                    name = parse2[1]
-                downloadUrl(self.__file_url+":orig", path+name)
+            count = 0
+            for url, filename in zip(self.__file_url, self.__filename):
+                path = ""
+                name = ""
+                if os.path.isdir(dest_filepath): # dest_filepath is all path without filename
+                    path = dest_filepath
+                    name = filename
+                else: # dest_filepath is a path to file or is invalid
+                    # assume dest_filepath is a path to file
+                    path, name = ntpath.split(dest_filepath)
+                    if not os.path.isdir(path): # not specify path, assume dest_filepath is filename
+                        path = os.path.curdir
+                    # add number indicator to the end of specified filename
+                    if '.' in name: # filename has extension
+                        name.replace('.', f"_{count}.", 1)
+                    else: # filename does not has extension
+                        name += f"_{count}.jpg"
+                if path[-1] != '/' or path[-1] != '\\':
+                    path += '/'
+                downloadUrl(url+":orig", path+name)
+                count += 1
     
     def getChildrenUrls(self, max_num: int = 30) -> list:
-        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls without limit"""
         
         # only process if current obj is parent
         if not self.isParent():
@@ -875,8 +936,8 @@ class DanbooruPic(WebPic):
     
     # private variables
     __parent_child: ParentChild = ParentChild.UNKNOWN
-    __file_url: str = ""
-    __filename: str = ""
+    __file_url: list = []
+    __filename: list = []
     __src_url: str = ""
     __has_artist_flag: bool = False
     __artist_info: ArtistInfo = None
@@ -894,8 +955,8 @@ class DanbooruPic(WebPic):
     def clear(self):
         super(DanbooruPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
-        self.__file_url = 0
-        self.__filename = 0
+        self.__file_url.clear()
+        self.__filename.clear()
         self.__src_url = 0
         self.__has_artist_flag = False
         if self.__artist_info != None:
@@ -940,11 +1001,11 @@ class DanbooruPic(WebPic):
         if cur != -1: # found file_url
             cur = src.find("href=\"", cur) + 6
             # set file url
-            self.__file_url = src[cur:src.find('\"', cur)]
+            self.__file_url.append(src[cur:src.find('\"', cur)])
             # set filename
-            parse1 = urllib.parse.urlparse(self.__file_url)
+            parse1 = urllib.parse.urlparse(self.__file_url[-1])
             parse2 = ntpath.split(parse1.path)
-            self.__filename = parse2[1]
+            self.__filename.append(parse2[1])
         
         # finding src_url
         cur = src.find("post-info-source", cur)
@@ -965,10 +1026,10 @@ class DanbooruPic(WebPic):
             cur += 3
     
     # getters 
-    def getFileUrl(self) -> str:
+    def getFileUrl(self) -> list:
         return self.__file_url
     
-    def getFileName(self) -> str:
+    def getFileName(self) -> list:
         return self.__filename
     
     def getSrcUrl(self) -> str:
@@ -993,10 +1054,31 @@ class DanbooruPic(WebPic):
         return self.__parent_child
     
     def downloadPic(self, dest_filepath = None):
-        downloadUrl(self.__file_url, dest_filepath)
+        if self.isChild():
+            count = 0
+            for url, filename in zip(self.__file_url, self.__filename):
+                path = ""
+                name = ""
+                if os.path.isdir(dest_filepath): # dest_filepath is all path without filename
+                    path = dest_filepath
+                    name = filename
+                else: # dest_filepath is a path to file or is invalid
+                    # assume dest_filepath is a path to file
+                    path, name = ntpath.split(dest_filepath)
+                    if not os.path.isdir(path): # not specify path, assume dest_filepath is filename
+                        path = os.path.curdir
+                    # add number indicator to the end of specified filename
+                    if '.' in name: # filename has extension
+                        name.replace('.', f"_{count}.", 1)
+                    else: # filename does not has extension
+                        name += f"_{count}.jpg"
+                if path[-1] != '/' or path[-1] != '\\':
+                    path += '/'
+                downloadUrl(url, path+name)
+                count += 1
     
     def getChildrenUrls(self, max_num: int = 30) -> list:
-        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls without limit"""
         
         # only process if current obj is parent
         if not self.isParent():
@@ -1049,8 +1131,8 @@ class YanderePic(WebPic):
     
     # private variables
     __parent_child: ParentChild = ParentChild.UNKNOWN
-    __file_url: str = ""
-    __filename: str = ""
+    __file_url: list = []
+    __filename: list = []
     __src_url: str = ""
     __has_artist_flag: bool = False
     __artist_info: ArtistInfo = None
@@ -1068,8 +1150,8 @@ class YanderePic(WebPic):
     def clear(self):
         super(YanderePic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
-        self.__file_url = 0
-        self.__filename = 0
+        self.__file_url.clear()
+        self.__filename.clear()
         self.__src_url = 0
         self.__has_artist_flag = False
         if self.__artist_info != None:
@@ -1134,11 +1216,11 @@ class YanderePic(WebPic):
             # finding file_url & filename
             
             # set file url
-            self.__file_url = j_dict[0]["posts"][0]["file_url"]
+            self.__file_url.append(j_dict[0]["posts"][0]["file_url"])
             # set filename
-            parse1 = urllib.parse.urlparse(self.__file_url)
+            parse1 = urllib.parse.urlparse(self.__file_url[-1])
             parse2 = ntpath.split(parse1.path)
-            self.__filename = parse2[1]
+            self.__filename.append(parse2[1])
             
             # finding src_url
             tmp_str = str(j_dict[0]["posts"][0]["source"])
@@ -1188,10 +1270,10 @@ class YanderePic(WebPic):
     
     
     # getters 
-    def getFileUrl(self) -> str:
+    def getFileUrl(self) -> list:
         return self.__file_url
     
-    def getFileName(self) -> str:
+    def getFileName(self) -> list:
         return self.__filename
     
     def getSrcUrl(self) -> str:
@@ -1216,10 +1298,31 @@ class YanderePic(WebPic):
         return self.__parent_child
     
     def downloadPic(self, dest_filepath = None):
-        downloadUrl(self.__file_url, dest_filepath)
+        if self.isChild():
+            count = 0
+            for url, filename in zip(self.__file_url, self.__filename):
+                path = ""
+                name = ""
+                if os.path.isdir(dest_filepath): # dest_filepath is all path without filename
+                    path = dest_filepath
+                    name = filename
+                else: # dest_filepath is a path to file or is invalid
+                    # assume dest_filepath is a path to file
+                    path, name = ntpath.split(dest_filepath)
+                    if not os.path.isdir(path): # not specify path, assume dest_filepath is filename
+                        path = os.path.curdir
+                    # add number indicator to the end of specified filename
+                    if '.' in name: # filename has extension
+                        name.replace('.', f"_{count}.", 1)
+                    else: # filename does not has extension
+                        name += f"_{count}.jpg"
+                if path[-1] != '/' or path[-1] != '\\':
+                    path += '/'
+                downloadUrl(url, path+name)
+                count += 1
     
     def getChildrenUrls(self, max_num: int = 30) -> list:
-        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls without limit"""
         
         # only process if current obj is parent
         if not self.isParent():
@@ -1307,8 +1410,8 @@ class KonachanPic(WebPic):
     
     # private variables
     __parent_child: ParentChild = ParentChild.UNKNOWN
-    __file_url: str = ""
-    __filename: str = ""
+    __file_url: list = []
+    __filename: list = []
     __src_url: str = ""
     __has_artist_flag: bool = False
     __artist_info: ArtistInfo = None
@@ -1326,8 +1429,8 @@ class KonachanPic(WebPic):
     def clear(self):
         super(KonachanPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
-        self.__file_url = 0
-        self.__filename = 0
+        self.__file_url.clear()
+        self.__filename.clear()
         self.__src_url = 0
         self.__has_artist_flag = False
         if self.__artist_info != None:
@@ -1395,11 +1498,11 @@ class KonachanPic(WebPic):
             # finding file_url & filename
             
             # set file url
-            self.__file_url = j_dict[0]["posts"][0]["file_url"]
+            self.__file_url.append(j_dict[0]["posts"][0]["file_url"])
             # set filename
-            parse1 = urllib.parse.urlparse(self.__file_url)
+            parse1 = urllib.parse.urlparse(self.__file_url[-1])
             parse2 = ntpath.split(parse1.path)
-            self.__filename = parse2[1]
+            self.__filename.append(parse2[1])
             
             # finding src_url
             tmp_str = str(j_dict[0]["posts"][0]["source"])
@@ -1449,10 +1552,10 @@ class KonachanPic(WebPic):
     
     
     # getters 
-    def getFileUrl(self) -> str:
+    def getFileUrl(self) -> list:
         return self.__file_url
     
-    def getFileName(self) -> str:
+    def getFileName(self) -> list:
         return self.__filename
     
     def getSrcUrl(self) -> str:
@@ -1477,10 +1580,31 @@ class KonachanPic(WebPic):
         return self.__parent_child
     
     def downloadPic(self, dest_filepath = None):
-        downloadUrl(self.__file_url, dest_filepath)
+        if self.isChild():
+            count = 0
+            for url, filename in zip(self.__file_url, self.__filename):
+                path = ""
+                name = ""
+                if os.path.isdir(dest_filepath): # dest_filepath is all path without filename
+                    path = dest_filepath
+                    name = filename
+                else: # dest_filepath is a path to file or is invalid
+                    # assume dest_filepath is a path to file
+                    path, name = ntpath.split(dest_filepath)
+                    if not os.path.isdir(path): # not specify path, assume dest_filepath is filename
+                        path = os.path.curdir
+                    # add number indicator to the end of specified filename
+                    if '.' in name: # filename has extension
+                        name.replace('.', f"_{count}.", 1)
+                    else: # filename does not has extension
+                        name += f"_{count}.jpg"
+                if path[-1] != '/' or path[-1] != '\\':
+                    path += '/'
+                downloadUrl(url, path+name)
+                count += 1
     
     def getChildrenUrls(self, max_num: int = 30) -> list:
-        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls"""
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls without limit"""
         
         # only process if current obj is parent
         if not self.isParent():
@@ -1559,6 +1683,222 @@ class KonachanPic(WebPic):
                         return output
             if counter == max_num:
                 return output
+        
+        return output
+
+
+class WeiboPic(WebPic):
+    """handle artist identifications & downloading for weibo"""
+    
+    # private variables
+    __parent_child: ParentChild = ParentChild.UNKNOWN
+    __file_url: list = []
+    __filename: list = []
+    __src_url: str = ""
+    __has_artist_flag: bool = False
+    __artist_info: ArtistInfo = None
+    __tags: list = []
+    
+    # constructor
+    def __init__(self, url: str, super_class: WebPic = None):
+        super(WeiboPic, self).__init__(url)
+        # input url is not a konachan url
+        if WebPicTypeMatch(self.getWebPicType(), WebPicType.WEIBO) == False:
+            raise ValueError("Wrong url input. Input url must be under domain of \"weibo\".")
+        self.__analyzeUrl()
+    
+    # clear obj
+    def clear(self):
+        super(WeiboPic, self).clear()
+        self.__parent_child = ParentChild.UNKNOWN
+        self.__file_url.clear()
+        self.__filename.clear()
+        self.__src_url = 0
+        self.__has_artist_flag = False
+        if self.__artist_info != None:
+            self.__artist_info.clear()
+        self.__tags.clear()
+    
+    # private helper function
+    def __analyzeUrl(self):
+        
+        # loc var
+        url = self.getUrl()
+        user_id = 0
+        status_id = 0
+        
+        # determine domain type
+        cur = url.find(WebPicType2DomainStr(WebPicType.WEIBO))
+        
+        if cur == -1:
+            # input weibo url is "www.weibo.com" domain
+            # assume input url is parent
+            self.__parent_child = ParentChild.PARENT
+            
+            # get user_id
+            src = getUrlSource(self.getUrl())
+            cur = src.find("$CONFIG[\'oid\']=\'")
+            if cur != -1:
+                cur += 16
+                user_id = int(src[cur:src.find("\'", cur)])
+        else:
+            parse1 = urllib.parse.urlparse(url)
+            parse2 = ntpath.split(parse1.path)
+            
+            # determine ParentChild status for "m.weibo.cn"
+            if "/detail/" in url or "/status/" in url: # found pattern
+                self.__parent_child = ParentChild.CHILD
+                # set status_id
+                status_id = int(parse2[1])
+            elif "/u/" in url:
+                self.__parent_child = ParentChild.PARENT
+                # set user_id
+                user_id = int(parse2[1])
+            else:
+                self.__parent_child = ParentChild.UNKNOWN
+        
+        # get json data
+        j_dict = {}
+        tmp_str = ""
+        try:
+            if self.__parent_child == ParentChild.PARENT:
+                tmp_str = getUrlSource(f"https://m.weibo.cn/api/container/getIndex?uid={user_id}&type=uid&value={user_id}&containerid=100505{user_id}")
+            elif self.__parent_child == ParentChild.CHILD:
+                tmp_str = getUrlSource(f"https://m.weibo.cn/statuses/show?id={status_id}")
+            j_dict = json.loads(tmp_str)
+            if j_dict["ok"] != 1:
+                raise ValueError("Unable to fetch json data from weibo")
+        except Exception as err:
+            raise err
+        
+        if self.isParent():
+                parse1 = urllib.parse.urlparse(self.getUrl())
+                tmp_str = "https://" + parse1.netloc + parse1.path
+                # has artist
+                self.__has_artist_flag = True
+                # initialize ArtistInfo
+                self.__artist_info = ArtistInfo(self.getWebPicType(), tmp_str)
+        elif self.isChild():
+            # whether has artist & get artistInfo
+            if "user" in j_dict["data"]:
+                # generate "m.weibo.cn" user url
+                tmp_str = "https://m.weibo.cn/u/" + str(j_dict["data"]["user"]["id"])
+                # has artist
+                self.__has_artist_flag = True
+                # initialize ArtistInfo
+                self.__artist_info = ArtistInfo(self.getWebPicType(), tmp_str)
+            
+            # finding file_url & filename
+            for pic in j_dict["data"]["pics"]:
+                self.__file_url.append(pic["large"]["url"])
+                parse1 = urllib.parse.urlparse(pic["large"]["url"])
+                parse2 = ntpath.split(parse1.path)
+                self.__filename.append(parse2[1])
+            
+            # assume weibo as a source, set src_url
+            self.__src_url = "https://m.weibo.cn/status/" + j_dict["data"]["id"]
+        
+        # get tags
+        if self.isParent():
+            self.__tags.append(j_dict["data"]["userInfo"]["screen_name"])
+        elif self.isChild():
+            self.__tags.append(j_dict["data"]["user"]["screen_name"])
+    
+    
+    # getters 
+    def getFileUrl(self) -> str:
+        return self.__file_url
+    
+    def getFileName(self) -> str:
+        return self.__filename
+    
+    def getSrcUrl(self) -> str:
+        return self.__src_url
+    
+    def hasArtist(self) -> bool:
+        return self.__has_artist_flag
+    
+    def getArtistInfo(self) -> ArtistInfo:
+        return self.__artist_info
+    
+    def getTags(self) -> list:
+        return self.__tags
+    
+    def isParent(self) -> bool:
+        return bool(self.__parent_child == ParentChild.PARENT)
+    
+    def isChild(self) -> bool:
+        return bool(self.__parent_child == ParentChild.CHILD)
+    
+    def getParentChildStatus(self) -> ParentChild:
+        return self.__parent_child
+    
+    def downloadPic(self, dest_filepath = None):
+        if self.isChild():
+            count = 0
+            for url, filename in zip(self.__file_url, self.__filename):
+                path = ""
+                name = ""
+                if os.path.isdir(dest_filepath): # dest_filepath is all path without filename
+                    path = dest_filepath
+                    name = filename
+                else: # dest_filepath is a path to file or is invalid
+                    # assume dest_filepath is a path to file
+                    path, name = ntpath.split(dest_filepath)
+                    if not os.path.isdir(path): # not specify path, assume dest_filepath is filename
+                        path = os.path.curdir
+                    # add number indicator to the end of specified filename
+                    if '.' in name: # filename has extension
+                        name.replace('.', f"_{count}.", 1)
+                    else: # filename does not has extension
+                        name += f"_{count}.jpg"
+                if path[-1] != '/' or path[-1] != '\\':
+                    path += '/'
+                downloadUrl(url, path+name)
+                count += 1
+    
+    def getChildrenUrls(self, max_num: int = 30) -> list:
+        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls without limit"""
+        
+        # only process if current obj is parent
+        if not self.isParent():
+            return []
+        
+        # loc var
+        user_id = 0
+        page_count = 1
+        item_count = 0
+        j_dict = {}
+        output = []
+        
+        # get urser_id
+        parse1 = urllib.parse.urlparse(self.getUrl())
+        parse2 = ntpath.split(parse1.path)
+        user_id = int(parse2[1])
+        
+        # getting children urls
+        while item_count < max_num:
+            # get user timeline
+            try:
+                src = getUrlSource(f"https://m.weibo.cn/api/container/getIndex?uid={user_id}&type=uid&page={page_count}&containerid=107603{user_id}")
+                j_dict = json.loads(src)
+                if j_dict["ok"] != 1:
+                    break
+            except Exception as err:
+                raise err
+            
+            # record each status with image
+            for status in j_dict["data"]["cards"]:
+                if ("mblog" in status and
+                    "pics" in status["mblog"] and
+                    len(status["mblog"]["pics"]) > 0
+                    ): # status has image
+                    
+                    output.append("https://m.weibo.cn/status/"+status["mblog"]["id"])
+                    item_count += 1
+                if item_count >= max_num:
+                    break
+            page_count += 1
         
         return output
 
