@@ -1,10 +1,6 @@
 #! /bin/python3
 
 # libs
-from re import S, T
-import re
-from typing import final
-from urllib3 import PoolManager
 import os
 import ntpath
 import urllib.parse
@@ -22,8 +18,10 @@ def getUrlSource(url) -> str:
     if len(url) <= 0:
         return
     
-    resp = PoolManager().request("GET", url)
-    str_data = resp.data.decode('utf-8')
+    resp = requests.get(url=url)
+    resp.encoding = resp.apparent_encoding
+    str_data = resp.text
+    
     return str_data
 
 def downloadUrl(url, dest_filepath = os.path.curdir):
@@ -33,7 +31,7 @@ def downloadUrl(url, dest_filepath = os.path.curdir):
     if len(url) <= 0:
         return
     
-    # get dir & filrname from dest_filepath
+    # get dir & filename from dest_filepath
     dir, filename = ntpath.split(dest_filepath)
     
     # no filename, use filename from url
@@ -44,13 +42,14 @@ def downloadUrl(url, dest_filepath = os.path.curdir):
     # has filename but no dir
     elif dir == None or len(dir) <= 0:
         return
-    # has filename & dir
-    else:
-        # download file
-        resp = PoolManager().request("GET", url)
-        file = open(dir+'/'+filename, "wb")
-        file.write(resp.data)
-        file.close()
+    
+    # has filename & dir, download file
+    if dir[-1] != '/':
+        dir += '/'
+    resp = requests.get(url=url)
+    file = open(dir+filename, "wb")
+    file.write(resp.content)
+    file.close()
 
 def findFirstNonNum(s: str, start_idx: int = 0) -> int:
     """Find the first non numberic character of input string from start_idx, return index"""
