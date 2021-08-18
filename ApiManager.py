@@ -61,15 +61,76 @@ apitoken_template = """
 
 
 # libs
-from collections import UserDict
 import os
 import shutil
+import ntpath
 import json
+import urllib.parse
+import requests
 # api libs
 from pixivpy3 import *
 import tweepy
 from pixiv_auth import refresh_returnDict
 
+
+# public const
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36',
+    'Connection': 'keep-alive',
+    'Refer': 'https://www.google.com'
+}
+
+# public functions
+
+def getUrlSrc(url: str) -> str:
+    """get url source as string"""
+    
+    if len(url) <= 0:
+        return
+    
+    resp = requests.get(url=url, headers=HEADERS)
+    resp.encoding = resp.apparent_encoding
+    return resp.text
+
+def getUrlJson(url: str) -> str:
+    """get json data form url"""
+    
+    if len(url) <= 0:
+        return
+    
+    resp = requests.get(url=url, headers=HEADERS)
+    resp.encoding = resp.apparent_encoding
+    return resp.json()
+
+def downloadUrl(url, dest_filepath = os.path.curdir):
+    """download url to dest_filepath"""
+    
+    # check url
+    if len(url) <= 0:
+        return
+    
+    # get dir & filename from dest_filepath
+    dir, filename = ntpath.split(dest_filepath)
+    
+    # no filename, use filename from url
+    if filename == None or len(filename) <= 0: 
+        p = urllib.parse.urlparse(url)
+        u_dir, u_filename = ntpath.split(p.path)
+        filename = u_filename
+    # has filename but no dir
+    elif dir == None or len(dir) <= 0:
+        return
+    
+    # has filename & dir, download file
+    if dir[-1] != '/':
+        dir += '/'
+    resp = requests.get(url=url, headers=HEADERS)
+    file = open(dir+filename, "wb")
+    file.write(resp.content)
+    file.close()
+
+
+# API Classes
 
 @Singleton
 class PixivAPI:

@@ -12,45 +12,6 @@ from ApiManager import *
 
 # public functions
 
-def getUrlSource(url) -> str:
-    """get url source as string"""
-    
-    if len(url) <= 0:
-        return
-    
-    resp = requests.get(url=url)
-    resp.encoding = resp.apparent_encoding
-    str_data = resp.text
-    
-    return str_data
-
-def downloadUrl(url, dest_filepath = os.path.curdir):
-    """download url to dest_filepath"""
-    
-    # check url
-    if len(url) <= 0:
-        return
-    
-    # get dir & filename from dest_filepath
-    dir, filename = ntpath.split(dest_filepath)
-    
-    # no filename, use filename from url
-    if filename == None or len(filename) <= 0: 
-        p = urllib.parse.urlparse(url)
-        u_dir, u_filename = ntpath.split(p.path)
-        filename = u_filename
-    # has filename but no dir
-    elif dir == None or len(dir) <= 0:
-        return
-    
-    # has filename & dir, download file
-    if dir[-1] != '/':
-        dir += '/'
-    resp = requests.get(url=url)
-    file = open(dir+filename, "wb")
-    file.write(resp.content)
-    file.close()
-
 def findFirstNonNum(s: str, start_idx: int = 0) -> int:
     """Find the first non numberic character of input string from start_idx, return index"""
     while start_idx < len(s):
@@ -331,7 +292,7 @@ class ArtistInfo:
             if "pixiv.net/users/" in loc_url:
                 self.__pixiv_urls.append(loc_url)
             elif ".fanbox.cc" in loc_url:
-                src = getUrlSource(loc_url)
+                src = getUrlSrc(loc_url)
                 cur = src.find("fanbox/public/images/creator/")
                 if cur == -1:
                     break
@@ -345,7 +306,7 @@ class ArtistInfo:
         cur = 0
         
         # get url source
-        src = getUrlSource(url)
+        src = getUrlSrc(url)
         
         # finding artist names
         cur = src.find("Other Names")
@@ -392,7 +353,7 @@ class ArtistInfo:
         self.__artist_names.append(urllib.parse.unquote(tmp_name))
         
         # get wiki page source
-        src = getUrlSource(url)
+        src = getUrlSrc(url)
         
         # get urls
         cur = 0
@@ -431,7 +392,7 @@ class ArtistInfo:
         self.__artist_names.append(urllib.parse.unquote(tmp_name))
         
         # get wiki page source
-        src = getUrlSource(url)
+        src = getUrlSrc(url)
         
         # get urls
         cur = 0
@@ -473,8 +434,7 @@ class ArtistInfo:
         # get j_dict
         j_dict = {}
         try:
-            src = getUrlSource(f"https://m.weibo.cn/api/container/getIndex?uid={user_id}&type=uid&value={user_id}&containerid=100505{user_id}")
-            j_dict = json.loads(src)
+            j_dict = getUrlJson(f"https://m.weibo.cn/api/container/getIndex?uid={user_id}&type=uid&value={user_id}&containerid=100505{user_id}")
             if j_dict["ok"] != 1:
                 raise ValueError("Unable to fetch json data from weibo")
         except Exception as err:
@@ -976,7 +936,7 @@ class DanbooruPic(WebPic):
             self.__parent_child = ParentChild.PARENT
         
         # get url source
-        src = getUrlSource(self.getUrl())
+        src = getUrlSrc(self.getUrl())
         
         # whether has artist
         if self.isChild():
@@ -989,7 +949,7 @@ class DanbooruPic(WebPic):
         if cur != -1:
             cur = src.find("href=\"", cur) + 6
             tmp_url = src[cur:src.find('\"', cur)]
-            tmp_url = WebPicType2DomainStr(self.getWebPicType()) + tmp_url
+            tmp_url = "https://" + WebPicType2DomainStr(self.getWebPicType()) + tmp_url
             # has artist
             self.__has_artist_flag = True
             # initialize ArtistInfo
@@ -1105,7 +1065,7 @@ class DanbooruPic(WebPic):
             page_count += 1
             
             # get url source
-            src = getUrlSource(loc_url)
+            src = getUrlSrc(url)
             cur = 0
             if "data-id" not in src: # reaches end of pages
                 break
@@ -1171,7 +1131,7 @@ class YanderePic(WebPic):
             self.__parent_child = ParentChild.UNKNOWN
         
         # get url source
-        src = getUrlSource(self.getUrl())
+        src = getUrlSrc(self.getUrl())
         
         # get json data
         j_dict = {}
@@ -1205,7 +1165,7 @@ class YanderePic(WebPic):
         # get artist info
         if len(tmp_str) > 0:
             # generate artist wiki page
-            tmp_str = WebPicType2DomainStr(WebPicType.YANDERE) + "/wiki/show?title=" + tmp_str
+            tmp_str = "https://" + WebPicType2DomainStr(WebPicType.YANDERE) + "/wiki/show?title=" + tmp_str
             # has artist
             self.__has_artist_flag = True
             # initialize ArtistInfo
@@ -1349,7 +1309,7 @@ class YanderePic(WebPic):
             page_count += 1
             
             # get url source
-            src = getUrlSource(loc_url)
+            src = getUrlSrc(loc_url)
             
             # get json data
             j_dict = {}
@@ -1450,7 +1410,7 @@ class KonachanPic(WebPic):
             self.__parent_child = ParentChild.UNKNOWN
         
         # get url source
-        src = getUrlSource(self.getUrl())
+        src = getUrlSrc(self.getUrl())
         
         # get json data
         j_dict = {}
@@ -1487,7 +1447,7 @@ class KonachanPic(WebPic):
         # get artist info
         if len(tmp_str) > 0:
             # generate artist wiki page
-            tmp_str = WebPicType2DomainStr(WebPicType.KONACHAN) + "/wiki/show?title=" + tmp_str
+            tmp_str = "https://" + WebPicType2DomainStr(WebPicType.KONACHAN) + "/wiki/show?title=" + tmp_str
             # has artist
             self.__has_artist_flag = True
             # initialize ArtistInfo
@@ -1631,7 +1591,7 @@ class KonachanPic(WebPic):
             page_count += 1
             
             # get url source
-            src = getUrlSource(loc_url)
+            src = getUrlSrc(loc_url)
             
             # get json data
             j_dict = {}
@@ -1735,7 +1695,7 @@ class WeiboPic(WebPic):
             self.__parent_child = ParentChild.PARENT
             
             # get user_id
-            src = getUrlSource(self.getUrl())
+            src = getUrlSrc(self.getUrl())
             cur = src.find("$CONFIG[\'oid\']=\'")
             if cur != -1:
                 cur += 16
@@ -1761,10 +1721,9 @@ class WeiboPic(WebPic):
         tmp_str = ""
         try:
             if self.__parent_child == ParentChild.PARENT:
-                tmp_str = getUrlSource(f"https://m.weibo.cn/api/container/getIndex?uid={user_id}&type=uid&value={user_id}&containerid=100505{user_id}")
+                j_dict = getUrlJson(f"https://m.weibo.cn/api/container/getIndex?uid={user_id}&type=uid&value={user_id}&containerid=100505{user_id}")
             elif self.__parent_child == ParentChild.CHILD:
-                tmp_str = getUrlSource(f"https://m.weibo.cn/statuses/show?id={status_id}")
-            j_dict = json.loads(tmp_str)
+                j_dict = getUrlJson(f"https://m.weibo.cn/statuses/show?id={status_id}")
             if j_dict["ok"] != 1:
                 raise ValueError("Unable to fetch json data from weibo")
         except Exception as err:
@@ -1879,8 +1838,7 @@ class WeiboPic(WebPic):
         while item_count < max_num:
             # get user timeline
             try:
-                src = getUrlSource(f"https://m.weibo.cn/api/container/getIndex?uid={user_id}&type=uid&page={page_count}&containerid=107603{user_id}")
-                j_dict = json.loads(src)
+                j_dict = getUrlJson(f"https://m.weibo.cn/api/container/getIndex?uid={user_id}&type=uid&page={page_count}&containerid=107603{user_id}")
                 if j_dict["ok"] != 1:
                     break
             except Exception as err:
