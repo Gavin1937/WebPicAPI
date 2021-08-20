@@ -570,11 +570,18 @@ class EHentaiAPI:
         output = []
         page_count = 0
         gallery_count = 0
+        # extra pure url with search keyword
         parse = urllib.parse.urlparse(url)
+        cur1 = parse.query.find("f_search=")
+        cur2 = parse.query.find('&', cur1+9)
+        if cur2 == -1: # no other query specified
+            base_url = parse.scheme+"://" + parse.netloc + parse.path + '?'+parse.query[cur1:]
+        else: # has other query, ignore them
+            base_url = parse.scheme+"://" + parse.netloc + parse.path + '?'+parse.query[cur1:cur2]
         
         while gallery_count < max_galleries:
             # generate search url
-            search_url = "https://" + parse.netloc + parse.path + f"&page={page_count}"
+            search_url = base_url + f"&page={page_count}"
             
             # make request
             src = self.__reqGet(search_url)
@@ -594,15 +601,30 @@ class EHentaiAPI:
     
     
     # booleans
+    def isValidEHentai(self, url: str) -> bool:
+        """Is Url a valid e-hentai url"""
+        if isValidUrl(url) and "e-hentai.org" in url:
+            return True
+        else: return False
+    
     def isValidGallery(self, url: str) -> bool:
         """Is Url a valid Gallery?"""
-        if isValidUrl(url) and "/g/" in url:
+        if self.isValidEHentai(url) and "/g/" in url:
             return True
         else: return False
     
     def isValidPicture(self, url: str) -> bool:
         """Is Url a valid Picture?"""
-        if isValidUrl(url) and "/s/" in url and url[-1] != '/':
+        if self.isValidEHentai(url) and "/s/" in url and url[-1] != '/':
+            return True
+        else: return False
+    
+    def isValidSearchPage(self, url: str) -> bool:
+        """Is Url a valid e-hentai page w/ multiple galleries"""
+        if (self.isValidEHentai(url) and
+            not self.isValidGallery(url) and
+            not self.isValidPicture(url)
+            ):
             return True
         else: return False
     
