@@ -1,5 +1,16 @@
 #! /bin/python3
 
+# ##################################################################
+# 
+# A simple API to fetch basic info and download pictures from
+# popular picture/wallpaper websites.
+# 
+# Author: Gavin1937
+# GitHub: https://github.com/Gavin1937/WebPicAPI
+# 
+# ##################################################################
+
+
 # libs
 import os
 import ntpath
@@ -35,7 +46,7 @@ def rmListDuplication(l: list) -> list:
             output.append(item)
     return output
 
-def isEmptyWebPic(webpic) -> bool:
+def isEmptyWebPic(webpic: any) -> bool:
     return (
         len(webpic.getFileUrl()) == 0 and
         len(webpic.getFileName()) == 0 and
@@ -143,7 +154,7 @@ def DomainStr2WebPicType(domain_str: str) -> WebPicType:
     else: # Unknown
         return WebPicType.UNKNOWN
 
-def WebPicTypeMatch(src_type: WebPicType, dest_type) -> bool:
+def WebPicTypeMatch(src_type: WebPicType, dest_type: WebPicType) -> bool:
     """Check wether src_type is same as dest_type"""
     # handle String dest_type
     loc_dest_type = WebPicType.UNKNOWN
@@ -182,7 +193,7 @@ class ArtistInfo:
             return None
     
     # clear obj
-    def clear(self):
+    def clear(self) -> None:
         self.__artist_names.clear()
         self.__pixiv_urls.clear()
         self.__twitter_urls.clear()
@@ -509,7 +520,7 @@ class WebPic:
             self.__webpic_type = WebPicType.UNKNOWN
     
     # clear obj
-    def clear(self):
+    def clear(self) -> None:
         self.__url = 0
         self.__webpic_type = WebPicType.UNKNOWN
     
@@ -546,7 +557,7 @@ class PixivPic(WebPic):
         self.__analyzeUrl()
     
     # clear obj
-    def clear(self):
+    def clear(self) -> None:
         super(PixivPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
         self.__file_url.clear()
@@ -735,7 +746,7 @@ class TwitterPic(WebPic):
         self.__analyzeUrl()
     
     # clear obj
-    def clear(self):
+    def clear(self) -> None:
         super(TwitterPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
         self.__file_url.clear()
@@ -918,7 +929,7 @@ class DanbooruPic(WebPic):
         self.__analyzeUrl()
     
     # clear obj
-    def clear(self):
+    def clear(self) -> None:
         super(DanbooruPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
         self.__file_url.clear()
@@ -1020,7 +1031,7 @@ class DanbooruPic(WebPic):
     def getParentChildStatus(self) -> ParentChild:
         return self.__parent_child
     
-    def downloadPic(self, dest_filepath = None):
+    def downloadPic(self, dest_filepath = None) -> None:
         if self.isChild():
             count = 0
             for url, filename in zip(self.__file_url, self.__filename):
@@ -1115,7 +1126,7 @@ class YanderePic(WebPic):
         self.__analyzeUrl()
     
     # clear obj
-    def clear(self):
+    def clear(self) -> None:
         super(YanderePic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
         self.__file_url.clear()
@@ -1266,7 +1277,7 @@ class YanderePic(WebPic):
     def getParentChildStatus(self) -> ParentChild:
         return self.__parent_child
     
-    def downloadPic(self, dest_filepath = None):
+    def downloadPic(self, dest_filepath = None) -> None:
         if self.isChild():
             count = 0
             for url, filename in zip(self.__file_url, self.__filename):
@@ -1396,7 +1407,7 @@ class KonachanPic(WebPic):
         self.__analyzeUrl()
     
     # clear obj
-    def clear(self):
+    def clear(self) -> None:
         super(KonachanPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
         self.__file_url.clear()
@@ -1550,7 +1561,7 @@ class KonachanPic(WebPic):
     def getParentChildStatus(self) -> ParentChild:
         return self.__parent_child
     
-    def downloadPic(self, dest_filepath = None):
+    def downloadPic(self, dest_filepath = None) -> None:
         if self.isChild():
             count = 0
             for url, filename in zip(self.__file_url, self.__filename):
@@ -1680,7 +1691,7 @@ class WeiboPic(WebPic):
         self.__analyzeUrl()
     
     # clear obj
-    def clear(self):
+    def clear(self) -> None:
         super(WeiboPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
         self.__file_url.clear()
@@ -1806,7 +1817,7 @@ class WeiboPic(WebPic):
     def getParentChildStatus(self) -> ParentChild:
         return self.__parent_child
     
-    def downloadPic(self, dest_filepath = None):
+    def downloadPic(self, dest_filepath = None) -> None:
         if self.isChild():
             count = 0
             for url, filename in zip(self.__file_url, self.__filename):
@@ -1901,7 +1912,7 @@ class EHentaiPic(WebPic):
         self.__analyzeUrl()
     
     # clear obj
-    def clear(self):
+    def clear(self) -> None:
         super(EHentaiPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
         self.__file_url.clear()
@@ -2002,7 +2013,7 @@ class EHentaiPic(WebPic):
     def getParentChildStatus(self) -> ParentChild:
         return self.__parent_child
     
-    def downloadPic(self, dest_filepath = None):
+    def downloadPic(self, dest_filepath = None) -> None:
         if self.isChild():
             count = 0
             for url, filename in zip(self.__file_url, self.__filename):
@@ -2041,4 +2052,48 @@ class EHentaiPic(WebPic):
         else: # current url is a search page url
             return self.__api.getGalleriesFromSearch(url, max_num)
 
+
+def url2WebPic(url: str) -> any:
+    """Get WebPic object from any supported url"""
+    webpic_type = DomainStr2WebPicType(url)
+    if webpic_type == WebPicType.PIXIV:
+        return PixivPic(url)
+    elif webpic_type == WebPicType.TWITTER:
+        return TwitterPic(url)
+    elif webpic_type == WebPicType.DANBOORU:
+        return DanbooruPic(url)
+    elif webpic_type == WebPicType.YANDERE:
+        return YanderePic(url)
+    elif webpic_type == WebPicType.KONACHAN:
+        return KonachanPic(url)
+    elif webpic_type == WebPicType.WEIBO:
+        return WeiboPic(url)
+    elif webpic_type == WebPicType.EHENTAI:
+        return EHentaiPic(url)
+    else: # Unknown
+        return None
+
+def printInfo(webpic: any) -> None:
+    """Printing all info of a supported WebPic"""
+    try:
+        if (webpic is None or
+            DomainStr2WebPicType(webpic.getUrl()) == WebPicType.UNKNOWN or
+            isEmptyWebPic(webpic)
+            ):
+            return
+    except: # ignore if caught exceptions
+        return
+    
+    print(f"{webpic.getUrl() = }")
+    print(f"{webpic.getWebPicType() = }")
+    print(f"{webpic.getParentChildStatus() = }")
+    print(f"{webpic.getFileUrl() = }")
+    print(f"{webpic.getFileName() = }")
+    print(f"{webpic.getSrcUrl() = }")
+    print(f"{webpic.hasArtist() = }")
+    if webpic.hasArtist():
+        print(f"{webpic.getArtistInfo().getArtistNames() = }")
+        print(f"{webpic.getArtistInfo().getUrl_pixiv() = }")
+        print(f"{webpic.getArtistInfo().getUrl_twitter() = }")
+    print(f"{webpic.getTags() = }")
 

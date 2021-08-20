@@ -1,5 +1,16 @@
 #! /bin/python3
 
+# ##################################################################
+# 
+# A simple API manager/wrapper to setup & provide a easy interface
+# for other APIs used in webpicapi.py
+# 
+# Author: Gavin1937
+# GitHub: https://github.com/Gavin1937/WebPicAPI
+# 
+# ##################################################################
+
+
 # source: https://stackoverflow.com/questions/31875/is-there-a-simple-elegant-way-to-define-singletons
 class Singleton:
     """
