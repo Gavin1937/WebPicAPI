@@ -1,0 +1,7 @@
+# Dependencies
+PixivPy
+tweepy
+requests
+requests-oauthlib
+BeautifulSoup
+lxml
