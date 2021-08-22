@@ -127,8 +127,7 @@ def WebPicType2DomainStr(webpic_type: WebPicType) -> str:
     elif webpic_type == WebPicType.KONACHAN:
         return "konachan.com"
     elif webpic_type == WebPicType.WEIBO:
-        # since "www.weibo.com" cannot display status,
-        # we use "m.weibo.cn"
+        # we mainly support "m.weibo.cn"
         return "m.weibo.cn"
     elif webpic_type == WebPicType.EHENTAI:
         return "e-hentai.org"
@@ -147,7 +146,7 @@ def DomainStr2WebPicType(domain_str: str) -> WebPicType:
         return WebPicType.YANDERE
     elif "konachan.com" in domain_str:
         return WebPicType.KONACHAN
-    elif "www.weibo.com" in domain_str or "m.weibo.cn" in domain_str:
+    elif "www.weibo.com" in domain_str or "weibo.com" in domain_str or "m.weibo.cn" in domain_str:
         return WebPicType.WEIBO
     elif "e-hentai.org" in domain_str:
         return WebPicType.EHENTAI
@@ -811,8 +810,8 @@ class TwitterPic(WebPic):
         
         if self.isChild():
             # finding file_url & filename
-            if "entities" in j_dict and "media" in j_dict["entities"]:
-                for media in j_dict["entities"]["media"]:
+            if "extended_entities" in j_dict and "media" in j_dict["extended_entities"]:
+                for media in j_dict["extended_entities"]["media"]:
                     if len(media["media_url"]) > 0:
                         self.__file_url.append(media["media_url"])
                         parse1 = urllib.parse.urlparse(self.__file_url[-1])
@@ -1725,7 +1724,8 @@ class WeiboPic(WebPic):
             if cur != -1:
                 cur += 16
                 user_id = int(src[cur:src.find("\'", cur)])
-        else:
+            
+        else: # input weibo url is "m.weibo.cn"
             parse1 = urllib.parse.urlparse(url)
             parse2 = ntpath.split(parse1.path)
             
