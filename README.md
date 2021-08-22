@@ -1,7 +1,20 @@
 
 # Web Picture Python3 API
 
-### This API is design for fetching basic info and download pictures from popular picture/wallpaper websites.
+### This API is designed to fetch basic info and download pictures from popular picture/wallpaper websites and social media.
+
+
+# Supported Websites:
+
+* [pixiv](https://www.pixiv.net/)
+* [twitter](https://twitter.com/)
+* [danbooru](https://danbooru.donmai.us/)
+* [yande.re](https://yande.re/)
+* [konachan](https://konachan.com/)
+* [weibo](https://www.weibo.com/)
+* [e-hentai](https://e-hentai.org/)
+
+## **Note: Weibo url with domain \"www.weibo.com\" doesn't support well, please use \"m.weibo.cn\" url instead**
 
 
 # Python Version: Python 3.8.10
@@ -23,6 +36,7 @@
 pip install -r requirements.txt
 ``` 
 
+
 # Requried API tokens
 
 | Name                                                                                                  | Tutorials                                                                                                                                                                                            |
@@ -31,17 +45,6 @@ pip install -r requirements.txt
 | twitter API: (consumer_api_key, consumer_secret, bearer_token, access_token, and access_token_secret) | [Apply For Twitter API Account](https://developer.twitter.com/en/docs/twitter-api/getting-started/getting-access-to-the-twitter-api)                                                                 |
 
 ### If you are using [@ZipFile Pixiv OAuth Flow](https://gist.github.com/ZipFile/c9ebedb224406f4f11845ab700124362)'s method for pixiv API, you can use [pixiv_auth.py](./pixiv_auth.py) file in this repo. It's the same file with an additional function.
-
-
-# Supported Websites:
-
-* [pixiv](https://www.pixiv.net/)
-* [twitter](https://twitter.com/)
-* [danbooru](https://danbooru.donmai.us/)
-* [yande.re](https://yande.re/)
-* [konachan](https://konachan.com/)
-* [weibo](https://www.weibo.com/)
-* [e-hentai](https://e-hentai.org/)
 
 
 # Get Started
@@ -56,11 +59,11 @@ Every Supported Websites is corresponding to a class, they are:
 * WeiboPic(url: str)
 * EHentaiPic(url: str)
 
-All of these classes are derived from super class WebPic
+All of these classes are derived from [super class WebPic](#class-webpic)
 
 As you see, these classes take a url: str as parameter. They will raise a ValueError if inputted url is not belong to their domain.
 
-You can also call url2WebPic(url: str) if you don't know which class is the url belong to, it will return the correct class object or None if inputted url is unsupported.
+You can also call [url2WebPic(url: str)](#public-functions) if you don't know which class is the url belonging to, it will return the correct class object or None if inputted url is unsupported.
 
 In every classes above, we provided following interfaces:
 
@@ -78,13 +81,13 @@ In every classes above, we provided following interfaces:
 ## WebPic derived classes:
 ### Getters
 * **getFileUrl() -> list**
-  * get file url(s) of current object **only if it is a child & contains image(s)**
+  * get file url(s) of current object if it has one
 * **getFileName() -> list**
-  * get file name(s) from file url **only if it is a child & contains image(s)**
+  * get file name(s) from file url if it has one
 * **getSrcUrl() -> str**
   * get source url of the image if found one. 
-  * **pixiv, twitter, and twitter are consider as \"source websites\"**
-  * **we assumed e-hentai urls have no source**
+  * **pixiv, twitter, and weibo are considering as \"source websites\"**
+  * **we will assume e-hentai urls have no source because its hard to gathering sources**
 * **hasArtist() -> bool**
   * whether current object has artist(s) specified
 * **getArtistInfo() -> ArtistInfo**
@@ -96,7 +99,7 @@ In every classes above, we provided following interfaces:
   * whether current object is parent
 * **isChild() -> bool**
   * whether current object is child
-#### It is hard to specify who is parent and who is child for different websites. So, we assume all the webpages that only contains downloadable images as child, and all other webpages from the same domain that contains thoese children are parent.
+#### It is hard to specify who is parent and who is child for different websites. So, we assume all the webpages that only contains downloadable images as children, and all other webpages from the same domain that contains thoese children are parents.
 
 ### Other Functions
 * **clear() -> None**
@@ -104,9 +107,9 @@ In every classes above, we provided following interfaces:
 * **getParentChildStatus() -> ParentChild**
   * get [class ParentChild](#class-parentchildintenum) status of current object
 * **downloadPic(dest_filepath = None) -> None**
-  * download image(s) in current object **only if current object is a child**
+  * download image(s) in current object **only if it is a child**
 * **getChildrenUrls(max_num: int = 30) -> list**
-  * get children urls from current object **only if current object is a parent**
+  * get children urls from current object **only if it is a parent**
   * parameter: max_num sets the limit of how many children will be capture
   * for **e-hentai urls**
     * if current object is an **e-hentai Gallery**, this function will return Pictures under that Gallery
@@ -116,38 +119,42 @@ In every classes above, we provided following interfaces:
 ### Stores basic info for artist
 
 * clear(self) -> None
+  * clear ArtistInfo class, this function will be automatically called with clear() from WebPic's derive classes
 ### Getters
 * **getArtistNames(self) -> list:**
   * return founded artist name(s)
 * **getUrl_pixiv(self) -> list**
-  * get artist pixiv url
+  * get artist pixiv url(s)
 * **getUrl_twitter(self) -> list**
-  * get artist twitter url
+  * get artist twitter url(s)
 ### Although weibo count as a \"source website\", it is rare to see weibo url in other websites, so we did not plan to store it in class ArtistInfo
 
 ## class ParentChild(IntEnum)
-### derived from class IntEnum, stores the status of a WebPic object
+### derived from class IntEnum. It stores the status of a WebPic object
 ### Status
-* UNKNOWN = 0
-* PARENT = 1
-* CHILD = 2
+
+| Status  | Value |
+|---------|-------|
+| UNKNOWN | 0     |
+| PARENT  | 1     |
+| CHILD   | 2     |
 
 ## class WebPicType(IntEnum)
-### derived from class IntEnum, stores the url type of a WebPic object
+### derived from class IntEnum. It stores the url type of a WebPic object
 
 ### WebPicType Bit Table
-| Type     | decimal Number | Binary Number |
-|----------|----------------|---------------|
-| PIXIV    | 1              | 0b 00000001   |
-| TWITTER  | 2              | 0b 00000010   |
-| DANBOORU | 4              | 0b 00000100   |
-| YANDERE  | 8              | 0b 00001000   |
-| KONACHAN | 16             | 0b 00010000   |
-| WEIBO    | 32             | 0b 00100000   |
-| EHENTAI  | 64             | 0b 01000000   |
-| UNKNOWN  | 128            | 0b 10000000   |
+| Type     | decimal Value | Binary Value |
+|----------|---------------|--------------|
+| PIXIV    | 1             | 0b 00000001  |
+| TWITTER  | 2             | 0b 00000010  |
+| DANBOORU | 4             | 0b 00000100  |
+| YANDERE  | 8             | 0b 00001000  |
+| KONACHAN | 16            | 0b 00010000  |
+| WEIBO    | 32            | 0b 00100000  |
+| EHENTAI  | 64            | 0b 01000000  |
+| UNKNOWN  | 128           | 0b 10000000  |
 
-* We use store this WebPicType info in 8-bits, so it is possible to use bit wise operators to assign multiple WebPicTypes to a row in database
+* We store this WebPicType variable in 8-bits, so it is possible to use bit wise operators to assign multiple WebPicTypes to a single row in the database
 
 ## Public Functions
 
@@ -175,7 +182,7 @@ In every classes above, we provided following interfaces:
   * if input string cannot be identified, function return WebPicType.UNKNOWN
 * **WebPicType2DomainStr(webpic_type: WebPicType) -> str**
   * convert WebPicType to url's domain as string
-  * we use "m.weibo.cn" as the domain for WEIBO because "www.weibo.com" cannot display weibo status in a single page, weibo status only come with "m.weibo.cn"
+  * we use \"m.weibo.cn\" as the domain for WEIBO because we haven't fully support \"www.weibo.com\", **and we don't recommend user to use \"www.weibo.com\" urls**
 
 | WebPicType | Output               |
 |------------|----------------------|
@@ -208,5 +215,10 @@ In every classes above, we provided following interfaces:
 
 
 ## Code Examples
-Checkout [Test.py](./Test.py) for examples and demonstrations
+[Checkout Test.py for examples and demonstrations](./Test.py)
+
+## To run Test/Demo:
+```sh
+python Test.py
+```
 
