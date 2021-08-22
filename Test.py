@@ -2,7 +2,7 @@
 
 # ##################################################################
 # 
-# Testing and Demo file for WebPicAPI
+# Testing and Demonstration file for WebPicAPI
 # 
 # Author: Gavin1937
 # GitHub: https://github.com/Gavin1937/WebPicAPI
@@ -10,7 +10,6 @@
 # ##################################################################
 
 
-import requests_oauthlib
 from webpicapi import *
 
 # URLs for testing
