@@ -11,7 +11,7 @@
 * [danbooru](https://danbooru.donmai.us/)
 * [yande.re](https://yande.re/)
 * [konachan](https://konachan.com/)
-* [weibo](https://www.weibo.com/)
+* [weibo](https://m.weibo.cn/)
 * [e-hentai](https://e-hentai.org/)
 
 ## **Note: Weibo url with domain \"www.weibo.com\" doesn't support well, please use \"m.weibo.cn\" url instead**
