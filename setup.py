@@ -2,7 +2,7 @@
 from distutils.core import setup
 
 
-with open("./WebPicAPI/VERSION", "r") as file:
+with open("./VERSION", "r") as file:
     VERSION = file.read()
 
 with open("./README.md", "r") as file:
