@@ -1,10 +1,11 @@
 
 # folders
-/.vscode/
-/__pycache__/
+.vscode
+__pycache__
 
 # files
 main.py
+*.pyc
 *.json
 *.bak
 *.jpg
