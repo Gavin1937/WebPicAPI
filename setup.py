@@ -1,6 +1,9 @@
 
 from distutils.core import setup
-from WebPicAPI.Version import VERSION
+
+
+with open("./WebPicAPI/VERSION", "r") as file:
+    VERSION = file.read()
 
 with open("./README.md", "r") as file:
     readme = file.read()
@@ -15,3 +18,4 @@ setup(
     url="https://github.com/Gavin1937/WebPicAPI",
     packages=["WebPicAPI", "WebPicAPI.Api", "WebPicAPI.ApiManager", "WebPicAPI.Util"]
 )
+
