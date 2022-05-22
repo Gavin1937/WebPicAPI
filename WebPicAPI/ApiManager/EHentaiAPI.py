@@ -1,11 +1,11 @@
 
 from .Singleton import Singleton
 from .OtherUtil import *
+from ..Util import HEADERS, randDelay, getSrcStr
 import json
 from bs4 import BeautifulSoup
 import urllib.parse
 import requests
-from ..Util import HEADERS, randDelay, getSrcStr
 
 
 @Singleton
