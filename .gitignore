@@ -2,9 +2,11 @@
 # folders
 .vscode
 __pycache__
+/WebPicAPI.egg-info/
 
 # files
 main.py
+*.sh
 *.pyc
 *.json
 *.bak

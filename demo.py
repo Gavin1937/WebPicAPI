@@ -10,7 +10,6 @@
 # ##################################################################
 
 
-# from webpicapi import *
 from WebPicAPI import *
 
 # URLs for testing
