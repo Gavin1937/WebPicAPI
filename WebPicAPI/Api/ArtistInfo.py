@@ -1,8 +1,8 @@
 
 from ..ApiManager import *
-from ..Util import *
 from ..Util.httpUtilities import randDelay, getSrcStr, getSrcJson
 from .types import WebPicType
+from .helperFunctions import rmListDuplication
 import urllib.parse
 import ntpath
 import requests

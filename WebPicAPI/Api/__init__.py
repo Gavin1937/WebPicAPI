@@ -16,3 +16,7 @@ from .KonachanPic import KonachanPic
 from .WeiboPic import WeiboPic
 from .EHentaiPic import EHentaiPic
 
+from .helperFunctions import (
+    findFirstNonNum, space2lowline, rmListDuplication,
+    isEmptyWebPic, url2WebPic, printInfo
+)

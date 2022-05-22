@@ -1,9 +1,9 @@
 
 from ..ApiManager import PixivAPI
-from ..Util import findFirstNonNum, space2lowline
 from .WebPic import WebPic
 from .types import WebPicType, ParentChild, WebPicTypeMatch
 from .ArtistInfo import ArtistInfo
+from .helperFunctions import findFirstNonNum, space2lowline
 import os
 import urllib.parse
 import ntpath

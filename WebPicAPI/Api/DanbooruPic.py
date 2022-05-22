@@ -1,9 +1,9 @@
 
-from ..Util import getSrcStr, findFirstNonNum
-from ..Util.httpUtilities import randDelay, downloadFile
+from ..Util.httpUtilities import randDelay, downloadFile, getSrcStr
 from .WebPic import WebPic
 from .types import WebPicType, ParentChild, WebPicTypeMatch, WebPicType2DomainStr
 from .ArtistInfo import ArtistInfo
+from .helperFunctions import findFirstNonNum
 import urllib.parse
 import ntpath
 import os

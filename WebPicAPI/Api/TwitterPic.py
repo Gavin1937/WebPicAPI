@@ -1,10 +1,10 @@
 
 from ..ApiManager import TwitterAPI
-from ..Util import space2lowline
 from ..Util.httpUtilities import downloadFile
 from .WebPic import WebPic
 from .types import WebPicType, ParentChild, WebPicTypeMatch
 from .ArtistInfo import ArtistInfo
+from .helperFunctions import space2lowline
 import urllib.parse
 import ntpath
 import os

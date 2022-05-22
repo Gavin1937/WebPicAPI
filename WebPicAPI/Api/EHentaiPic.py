@@ -1,5 +1,5 @@
 
-from ..ApiManager import EHentaiAPI, isValidUrl
+from ..ApiManager.EHentaiAPI import EHentaiAPI
 from ..Util.httpUtilities import randDelay, downloadFile
 from .WebPic import WebPic
 from .types import WebPicType, ParentChild, WebPicTypeMatch
@@ -10,6 +10,10 @@ import json
 import os
 
 
+def isValidUrl(url: str) -> bool:
+    if url is not None and len(url) > 0:
+        return True
+    else: return False
 
 class EHentaiPic(WebPic):
     """handle artist identifications & downloading for e-hentai"""
