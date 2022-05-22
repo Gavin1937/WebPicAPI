@@ -1,6 +1,6 @@
 
 from .Singleton import Singleton
-from .OtherUtil import *
+from .template import *
 from pixivpy3 import *
 from .pixiv_auth import refresh_returnDict
 import os, shutil

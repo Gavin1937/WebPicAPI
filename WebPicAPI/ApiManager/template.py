@@ -18,8 +18,3 @@ apitoken_template = """
 }
 """
 
-def isValidUrl(url: str) -> bool:
-    if url is not None and len(url) > 0:
-        return True
-    else: return False
-

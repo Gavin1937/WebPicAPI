@@ -1,6 +1,6 @@
 
 from .Singleton import Singleton
-from .OtherUtil import *
+from .template import *
 import tweepy
 import os, shutil
 import json

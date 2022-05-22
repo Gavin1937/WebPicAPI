@@ -1,12 +1,17 @@
 
+from ..Util.httpUtilities import HEADERS, randDelay, getSrcStr
 from .Singleton import Singleton
-from .OtherUtil import *
-from ..Util import HEADERS, randDelay, getSrcStr
+from .template import *
 import json
 from bs4 import BeautifulSoup
 import urllib.parse
 import requests
 
+
+def isValidUrl(url: str) -> bool:
+    if url is not None and len(url) > 0:
+        return True
+    else: return False
 
 @Singleton
 class EHentaiAPI:
