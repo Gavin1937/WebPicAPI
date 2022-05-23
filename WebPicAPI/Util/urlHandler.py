@@ -223,6 +223,9 @@ class urlHandler:
         if isinstance(path, PurePath):
             path = str(path)
         
+        if path[0] != '/':
+            path = '/' + path
+        
         # update
         self.__parseResult = self.__parseResult._replace(path=path)
         self.__path = PurePath(path)
