@@ -26,7 +26,7 @@ class urlHandler:
         # parse parameters
         for p in self.__parseResult.query.split('&'):
             if p.count('=') != 1: # more than 1 '=', invalid parameter
-                pass
+                continue
             k,v = p.split('=')
             if k in self.__param: # duplicate parameter key, update value as list
                 if type(self.__param.get(k)) is not list:
