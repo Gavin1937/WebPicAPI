@@ -84,17 +84,18 @@ def downloadFile(url:str, filepath:Union[str,Path], overwrite:bool=False) -> boo
         else:
             return False
     
+    # filepath exists, and it is dir
     elif filepath.exists() and filepath.is_dir():
-        # filepath is parent dir
-        # use filename in url path
+        # assume filepath is parent dir and use filename in url path
         filename = basename(urlparse(url).path)
         writeBytes2File(data, filepath/filename)
     
     # filepath not exists & its parent exists
     elif not filepath.exists() and filepath.parent.exists():
-        # assum filepath is a file that haven't been create
+        # assume filepath is a file that haven't been create
         writeBytes2File(data, filepath)
     
+    # filepath not exists & its parent not exists
     else:
         raise ValueError("Invalid filepath.")
     
