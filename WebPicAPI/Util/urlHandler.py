@@ -9,8 +9,9 @@
 
 from urllib.parse import ParseResult, urlparse, quote, unquote
 from pathlib import PurePath
-import re
 from typing import Union
+from copy import deepcopy
+import re
 
 
 class urlHandler:
@@ -234,6 +235,10 @@ class urlHandler:
     # other functions
     def toString(self) -> str:
         return self.__parseResult.geturl()
+    
+    def copy(self):
+        "deep copy current object"
+        return deepcopy(self)
     
     
     # private helper function
