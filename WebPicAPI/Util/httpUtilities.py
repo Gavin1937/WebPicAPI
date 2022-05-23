@@ -3,7 +3,7 @@
 #                                                                                     #
 #   Utilities associate with http request                                             #
 #   Including get url source/content and download                                     #
-#   Requires Python 3.8 or above                                                      #
+#   Requires Python 3.8 or above and requests                                         #
 #   GitHub Gist: https://gist.github.com/Gavin1937/73dff133906a14be632aa63b2f946f82   #
 #                                                                                     #
 #######################################################################################
