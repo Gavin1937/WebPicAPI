@@ -32,12 +32,10 @@ class WebPic:
         else: # Unknown
             self.__webpic_type = WebPicType.UNKNOWN
     
-    # clear obj
     def clear(self) -> None:
         self.__url = 0
         self.__webpic_type = WebPicType.UNKNOWN
     
-    # public methods
     def getUrl(self) -> str:
         return self.__url
     
