@@ -51,6 +51,7 @@ def printInfo(webpic: any) -> None:
     print(f"{webpic.isEmpty() = }")
     print(f"{webpic.getParentChildStatus() = }")
     
+    # following 3 lines does not exist in original printInfo()
     print("clearing webpic...")
     webpic.clear()
     print(f"{webpic.isEmpty() = }")

@@ -3,6 +3,7 @@ from .types import WebPicType, DomainStr2WebPicType
 from .ArtistInfo import ArtistInfo
 
 
+# TODO: try to ditch this function
 def findFirstNonNum(s: str, start_idx: int = 0) -> int:
     """Find the first non numeric character of input string from start_idx, return index"""
     while start_idx < len(s):
@@ -11,6 +12,7 @@ def findFirstNonNum(s: str, start_idx: int = 0) -> int:
         start_idx += 1
     return start_idx
 
+# TODO: try to ditch this function
 def space2lowline(s: str) -> str:
     """Convert all spaces \' \' in input string to lowline \'_\' and return as a new string"""
     # l = str(s).split(' ')
@@ -20,6 +22,7 @@ def space2lowline(s: str) -> str:
     # return output[:-1]
     return s.replace(' ', '_')
 
+# TODO: try to ditch this function
 def rmListDuplication(l: list) -> list:
     # output = []
     # for item in l:
@@ -96,8 +99,4 @@ def printInfo(webpic: any) -> None:
     print(f"{webpic.isChild() = }")
     print(f"{webpic.isEmpty() = }")
     print(f"{webpic.getParentChildStatus() = }")
-    
-    print("clearing webpic...")
-    webpic.clear()
-    print(f"{webpic.isEmpty() = }")
 
