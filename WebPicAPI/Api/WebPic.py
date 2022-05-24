@@ -1,34 +1,33 @@
 
-from .types import WebPicType, ParentChild
-import urllib.parse
+from ..Util import urlHandler
+from .types import WebPicType
 
 
 class WebPic:
     """Online Picture/Wallpaper website template class"""
     
-    # private variables
-    __url: str = ""
-    __webpic_type: WebPicType = WebPicType.UNKNOWN
-    
     # constructor
     def __init__(self, url: str):
-        self.__url = url
+        
+        # private variable
+        self.__url: str = url
+        self.__webpic_type: WebPicType = WebPicType.UNKNOWN
+        
         # identify __webpic_type
-        p = urllib.parse.urlparse(self.getUrl())
-        netloc = p.netloc
-        if "pixiv.net" in p.netloc:
+        p = urlHandler(self.__url)
+        if p.isPatternInDomain("pixiv.net"):
             self.__webpic_type = WebPicType.PIXIV
-        elif "twitter.com" in p.netloc or "twimg.com" in p.netloc:
+        elif p.isPatternInDomain("twitter.com") or p.isPatternInDomain("twimg.com"):
             self.__webpic_type = WebPicType.TWITTER
-        elif "danbooru.donmai.us" in p.netloc:
+        elif p.isPatternInDomain("danbooru.donmai.us"):
             self.__webpic_type = WebPicType.DANBOORU
-        elif "yande.re" in p.netloc:
+        elif p.isPatternInDomain("yande.re"):
             self.__webpic_type = WebPicType.YANDERE
-        elif "konachan.com" in p.netloc:
+        elif p.isPatternInDomain("konachan.com"):
             self.__webpic_type = WebPicType.KONACHAN
-        elif "weibo.c" in p.netloc:
+        elif p.isPatternInDomain("weibo.c"):
             self.__webpic_type = WebPicType.WEIBO
-        elif "e-hentai.org" in p.netloc:
+        elif p.isPatternInDomain("e-hentai.org"):
             self.__webpic_type = WebPicType.EHENTAI
         else: # Unknown
             self.__webpic_type = WebPicType.UNKNOWN
