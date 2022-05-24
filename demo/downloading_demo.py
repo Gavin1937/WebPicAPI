@@ -1,13 +1,13 @@
 #! /bin/python3
 
-#########################################################
-#                                                       #
-#   Testing and Demonstrating accessors for WebPicAPI   #
-#                                                       #
-#   Author: Gavin1937                                   #
-#   GitHub: https://github.com/Gavin1937/WebPicAPI      #
-#                                                       #
-#########################################################
+#############################################################
+#                                                           #
+#   Testing and Demonstrating downloadPic() for WebPicAPI   #
+#                                                           #
+#   Author: Gavin1937                                       #
+#   GitHub: https://github.com/Gavin1937/WebPicAPI          #
+#                                                           #
+#############################################################
 
 
 # set path to parent in order to import WebPicAPI
@@ -36,7 +36,7 @@ if __name__ == "__main__":
             print(f"downloading: {child.getUrl()}")
             
             # download, you can input str path as well
-            child.downloadFile(download)
+            child.downloadPic(download)
         except Exception as err:
             print(err)
     
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                 print(f"downloading: {child.getUrl()}")
                 
                 # download
-                child.downloadFile('./test/download/')
+                child.downloadPic('./test/download/')
         except Exception as err:
             print(err)
     
