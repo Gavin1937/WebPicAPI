@@ -1,5 +1,6 @@
 
 from .types import WebPicType, DomainStr2WebPicType
+from .ArtistInfo import ArtistInfo
 
 
 def findFirstNonNum(s: str, start_idx: int = 0) -> int:
@@ -27,6 +28,7 @@ def rmListDuplication(l: list) -> list:
     # return output
     return list(set(l))
 
+# TODO: move this function to all WebPic subclasses
 def isEmptyWebPic(webpic: any) -> bool:
     return (
         len(webpic.getFileUrl()) == 0 and
@@ -37,7 +39,8 @@ def isEmptyWebPic(webpic: any) -> bool:
     )
 
 
-def url2WebPic(url: str) -> any:
+# TODO: add artist_info, min_delay, & max_delay to all the WebPic
+def url2WebPic(url:str, artist_info:ArtistInfo=None, min_delay:float=0.0, max_delay:float=1.0) -> any:
     """Get WebPic object from any supported url"""
     webpic_type = DomainStr2WebPicType(url)
     if webpic_type == WebPicType.PIXIV:
@@ -48,7 +51,7 @@ def url2WebPic(url: str) -> any:
         return TwitterPic(url)
     elif webpic_type == WebPicType.DANBOORU:
         from .DanbooruPic import DanbooruPic
-        return DanbooruPic(url)
+        return DanbooruPic(url, artist_info, min_delay, max_delay)
     elif webpic_type == WebPicType.YANDERE:
         from .YanderePic import YanderePic
         return YanderePic(url)
@@ -67,17 +70,19 @@ def url2WebPic(url: str) -> any:
 def printInfo(webpic: any) -> None:
     """Printing all info of a supported WebPic"""
     try:
-        if (webpic is None or
+        if (
+            webpic is None or
             DomainStr2WebPicType(webpic.getUrl()) == WebPicType.UNKNOWN or
-            isEmptyWebPic(webpic)
-            ):
+            webpic.isEmpty()
+        ):
             return
     except: # ignore if caught exceptions
         return
     
     print(f"{webpic.getUrl() = }")
     print(f"{webpic.getWebPicType() = }")
-    print(f"{webpic.getParentChildStatus() = }")
+    print(f"{webpic.getMinDelay() = }")
+    print(f"{webpic.getMaxDelay() = }")
     print(f"{webpic.getFileUrl() = }")
     print(f"{webpic.getFileName() = }")
     print(f"{webpic.getSrcUrl() = }")
@@ -87,4 +92,12 @@ def printInfo(webpic: any) -> None:
         print(f"{webpic.getArtistInfo().getUrl_pixiv() = }")
         print(f"{webpic.getArtistInfo().getUrl_twitter() = }")
     print(f"{webpic.getTags() = }")
+    print(f"{webpic.isParent() = }")
+    print(f"{webpic.isChild() = }")
+    print(f"{webpic.isEmpty() = }")
+    print(f"{webpic.getParentChildStatus() = }")
+    
+    print("clearing webpic...")
+    webpic.clear()
+    print(f"{webpic.isEmpty() = }")
 
