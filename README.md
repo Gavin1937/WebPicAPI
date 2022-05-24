@@ -61,11 +61,11 @@ Every Supported Websites is corresponding to a class, they are:
 
 All of these classes are derived from [super class WebPic](#class-webpic)
 
-As you see, these classes take a url: str as parameter. They will raise a ValueError if inputted url is not belong to their domain.
+As you see, these classes take a url: str as parameter. They will raise a ValueError if given url is not belong to their domain.
 
-You can also call [url2WebPic(url: str)](#public-functions) if you don't know which class is the url belonging to, it will return the correct class object or None if inputted url is unsupported.
+You can also call [url2WebPic(url: str)](#public-functions) if you don't know which class is the url belonging to, it will return the correct class object or None if given url is unsupported.
 
-In every classes above, we provided following interfaces:
+In every classes above, we provide following interfaces:
 
 
 ## class WebPic:
@@ -219,6 +219,6 @@ In every classes above, we provided following interfaces:
 
 ## To run Test/Demo:
 ```sh
-python Test.py
+python3 demo.py
 ```
 

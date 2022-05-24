@@ -1,5 +1,5 @@
 
-from distutils.core import setup
+from setuptools import setup
 
 
 with open("./VERSION", "r") as file:
@@ -13,6 +13,7 @@ setup(
     version=VERSION,
     description="A simple API to fetch basic info and download pictures from popular picture/wallpaper websites and social media.",
     long_description=readme,
+    long_description_content_type="text/markdown",
     author="Gavin1937",
     author_email="gyh1837771475gyh@gmail.com",
     url="https://github.com/Gavin1937/WebPicAPI",
