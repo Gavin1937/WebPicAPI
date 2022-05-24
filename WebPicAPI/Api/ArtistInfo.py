@@ -1,15 +1,20 @@
 
-from flask import has_app_context
 from WebPicAPI.Util.urlHandler import urlHandler
 from ..ApiManager import *
 from ..Util.httpUtilities import randDelay, getSrcStr, getSrcJson
 from .types import WebPicType
-from .helperFunctions import rmListDuplication
+#! creates circular import
+#! from .helperFunctions import rmListDuplication
 import urllib.parse
 import ntpath
 import requests
 import json
 from bs4 import BeautifulSoup
+
+
+#! ditch the use of this function later
+def rmListDuplication(l: list) -> list:
+    return list(set(l))
 
 
 class ArtistInfo:
