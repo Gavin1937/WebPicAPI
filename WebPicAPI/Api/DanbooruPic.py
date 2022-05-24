@@ -1,108 +1,113 @@
 
-from ..Util.httpUtilities import randDelay, downloadFile, getSrcStr
+from ..Util.httpUtilities import downloadFile, getSrcStr
+from ..Util import urlHandler
 from .WebPic import WebPic
 from .types import WebPicType, ParentChild, WebPicTypeMatch, WebPicType2DomainStr
 from .ArtistInfo import ArtistInfo
-from .helperFunctions import findFirstNonNum
-import urllib.parse
-import ntpath
-import os
+from bs4 import BeautifulSoup
+from pathlib import Path
+from typing import Union
 
 
 class DanbooruPic(WebPic):
     """handle artist identifications & downloading for danbooru"""
     
-    # private variables
-    __parent_child: ParentChild = ParentChild.UNKNOWN
-    __file_url: list = []
-    __filename: list = []
-    __src_url: str = ""
-    __has_artist_flag: bool = False
-    __artist_info: ArtistInfo = None
-    __tags: list = []
-    
     # constructor
-    def __init__(self, url: str, super_class: WebPic = None):
-        super(DanbooruPic, self).__init__(url)
-        # input url is not a danbooru url
+    def __init__(self, url:str, artist_info:ArtistInfo=None, min_delay:float=0.0, max_delay:float=1.0):
+        """
+            Initializing DanbooruPic.\n
+            \n
+            :Param:\n
+                url          => str url to a danbooru page\n
+                artist_info  => ArtistInfo from a parent. \n
+                                If given, class will use given ArtistInfo instead of requesting new one.\n
+                                This parameter is only for child url to save time.\n
+                min_delay    => float minimum delay time in seconds (default 0.0)\n
+                max_delay    => float maximum delay time in seconds (default 1.0)\n
+            \n
+            :Number of Requests: [2]\n
+        """
+        
+        # private members
+        self.__parent_child:ParentChild = ParentChild.UNKNOWN
+        self.__file_url:list = []
+        self.__filename:list = []
+        self.__src_url:str = ""
+        self.__has_artist_flag:bool = False
+        self.__artist_info:ArtistInfo = None
+        self.__tags:list = []
+        
+        # init super class & analyze url
+        super(DanbooruPic, self).__init__(url, min_delay, max_delay)
         if WebPicTypeMatch(self.getWebPicType(), WebPicType.DANBOORU) == False:
             raise ValueError("Wrong url input. Input url must be under domain of \"danbooru.donmai.us\".")
-        self.__analyzeUrl()
+        self.__analyzeUrl(artist_info)
+    
     
     # clear obj
     def clear(self) -> None:
-        super(DanbooruPic, self).clear()
         self.__parent_child = ParentChild.UNKNOWN
         self.__file_url.clear()
         self.__filename.clear()
-        self.__src_url = 0
+        self.__src_url = None
         self.__has_artist_flag = False
         if self.__artist_info != None:
             self.__artist_info.clear()
         self.__tags.clear()
+        super(DanbooruPic, self).clear()
     
     # private helper function
-    def __analyzeUrl(self):
-        # determine ParentChild
-        cur = self.getUrl().find("/posts") + 6
+    def __analyzeUrl(self, artist_info:ArtistInfo=None):
+        
+        tmp_url = None
         
         # determine ParentChild status
-        if cur == -1:
-            self.__parent_child = ParentChild.UNKNOWN
-        elif self.getUrl()[cur] == '/':
+        url = urlHandler(self.getUrl())
+        if url.isPatternInPathR(r".*/posts/\d+$"):
             self.__parent_child = ParentChild.CHILD
-        else:
+        elif url.isPatternInPathR(r".*/posts$"):
             self.__parent_child = ParentChild.PARENT
+        else:
+            self.__parent_child = ParentChild.UNKNOWN
         
-        # get url source
-        randDelay(1.0, 2.5)
-        src = getSrcStr(self.getUrl())
+        # get url source soup
+        self._delay()
+        soup = BeautifulSoup(getSrcStr(self.getUrl()), 'lxml')
         
-        # whether has artist
-        if self.isChild():
-            cur = src.find("artist-tag-list")
-            if cur != -1:
-                cur = src.find("class=\"wiki-link\"", cur)
-        elif self.isParent():
-            cur = src.find("artist-excerpt-link")
-        # found artist
-        if cur != -1:
-            cur = src.find("href=\"", cur) + 6
-            tmp_url = src[cur:src.find('\"', cur)]
-            tmp_url = "https://" + WebPicType2DomainStr(self.getWebPicType()) + tmp_url
-            # has artist
+        # handle given artist_info
+        if self.isChild() and artist_info:
             self.__has_artist_flag = True
-            # initialize ArtistInfo
-            self.__artist_info = ArtistInfo(self.getWebPicType(), tmp_url)
+            self.__artist_info = artist_info
+        
+        # finding artist if don't have one 
+        if (self.__has_artist_flag == False and self.__artist_info is None):
+            if self.isChild():
+                tmp_url = soup.select_one("ul.artist-tag-list a")
+            elif self.isParent():
+                tmp_url = soup.select_one("a.artist-excerpt-link")
+            # found artist
+            if tmp_url:
+                tmp_url = "https://" + WebPicType2DomainStr(self.getWebPicType()) + tmp_url.get('href')
+                self.__has_artist_flag = True
+                self.__artist_info = ArtistInfo(self.getWebPicType(), tmp_url)
         
         # finding file_url & filename
-        cur = src.find("post-info-size")
-        if cur != -1: # found file_url
-            cur = src.find("href=\"", cur) + 6
-            # set file url
-            self.__file_url.append(src[cur:src.find('\"', cur)])
-            # set filename
-            parse1 = urllib.parse.urlparse(self.__file_url[-1])
-            parse2 = ntpath.split(parse1.path)
-            self.__filename.append(parse2[1])
+        tmp_url = soup.select_one("li#post-info-size a")
+        if tmp_url: # found file_url
+            self.__file_url.append(tmp_url.get('href'))
+            tmp_url = urlHandler(tmp_url.get('href'))
+            self.__filename.append(tmp_url.getPathPart(-1))
         
         # finding src_url
-        cur = src.find("post-info-source", cur)
-        if cur != -1: # found source
-            cur = src.find("href=\"", cur) + 6
-            # set src_url
-            self.__src_url = src[cur:src.find('\"', cur)]
+        tmp_url = soup.select_one("li#post-info-source a")
+        if tmp_url: # found source
+            self.__src_url = tmp_url.get('href')
         
         # get tags
-        cur = 0
-        while cur > -1:
-            cur = src.find("data-tag-name=\"", cur)
-            if cur < 0:
-                break
-            cur += 15
-            tmp = src[cur:src.find('\"', cur)]
-            self.__tags.append(tmp)
-            cur += 3
+        tags = soup.select("li[data-tag-name]")
+        for t in tags:
+            self.__tags.append(t.get('data-tag-name'))
+        self.__tags = list(set(self.__tags))
     
     # getters 
     def getFileUrl(self) -> list:
@@ -129,80 +134,82 @@ class DanbooruPic(WebPic):
     def isChild(self) -> bool:
         return bool(self.__parent_child == ParentChild.CHILD)
     
+    def isEmpty(self) -> bool:
+        return (
+            len(self.__file_url) == 0 and
+            len(self.__filename) == 0 and
+            self.__src_url == 0 and
+            self.__has_artist_flag == False and
+            len(self.__tags) == 0
+        )
+    
     def getParentChildStatus(self) -> ParentChild:
         return self.__parent_child
     
-    def downloadPic(self, dest_filepath = None) -> None:
+    def downloadPic(self, dest_filepath:Union[str,Path]=None, overwrite:bool=False) -> bool:
+        """
+            Download pictures in a child.\n
+            \n
+            :Param:\n
+                dest_filepath    => str | Path filepath to destination\n
+                overwrite        => bool flag whether to overwrite duplicate file\n
+            \n
+            :Number of Requests: [1]\n
+            \n
+            :Return:\n
+                if download success yield True, otherwise yield False\n
+        """
         if self.isChild():
-            count = 0
-            for url, filename in zip(self.__file_url, self.__filename):
-                path = ""
-                name = ""
-                if os.path.isdir(dest_filepath): # dest_filepath is all path without filename
-                    path = dest_filepath
-                    name = filename
-                else: # dest_filepath is a path to file or is invalid
-                    # assume dest_filepath is a path to file
-                    path, name = ntpath.split(dest_filepath)
-                    if not os.path.isdir(path): # not specify path, assume dest_filepath is filename
-                        path = os.path.curdir
-                    # add number indicator to the end of specified filename
-                    if '.' in name: # filename has extension
-                        name.replace('.', f"_{count}.", 1)
-                    else: # filename does not has extension
-                        name += f"_{count}.jpg"
-                if path[-1] != '/' or path[-1] != '\\':
-                    path += '/'
-                downloadFile(url, path+name)
-                count += 1
+            for url in self.__file_url:
+                try:
+                    yield downloadFile(url, dest_filepath, overwrite)
+                except Exception: # dest_filepath invalid or duplicate file
+                    raise
     
-    def getChildrenUrls(self, max_num: int = 30) -> list:
-        """Get all children urls of a parent until reaches max_num. Input -1 means get all children urls without limit"""
+    def getChildrenUrls(self, limit:int=30) -> list:
+        """
+            Get all children urls of a parent until reaches limit.\n
+            \n
+            :Param:\n
+                limit => maximum number of children to fetch. (default 30, set to -1 to fetch all)\n
+            \n
+            :Number of Requests: [limit]\n
+            \n
+            :Return:\n
+                if current WebPic is Child, return a list of str urls (list[str])\n
+                if current WebPic is Parent, return empty list\n
+        """
         
         # only process if current obj is parent
         if not self.isParent():
             return []
         
-        counter = 0
-        # process url
-        url = self.getUrl()
-        parse1 = urllib.parse.urlparse(url)
-        if parse1.query == None:
-            url += "?page=#"
-        elif "page=" not in parse1.query: # no page indicator
-            url += "&page=#"
-        else: # "page=" in parse1.query
-            cur = url.find("page=")
-            cur2 = findFirstNonNum(url, cur+5)
-            url = url.replace(url[cur:cur2], "page=#")
-        
-        # fetching urls
+        # setup
+        pic_count = 0
         output = []
-        page_count = 1
-        while counter != max_num:
-            # generate url for current page
-            loc_url = url.replace("page=#", f"page={page_count}")
-            page_count += 1
+        
+        soup = BeautifulSoup(getSrcStr(self.getUrl()), 'lxml')
+        
+        while pic_count != limit:
             
-            # get url source
-            randDelay(1.0, 2.5)
-            src = getSrcStr(url)
-            cur = 0
-            if "data-id" not in src: # reaches end of pages
-                break
-            
-            # find post id from src & build post url w/ it
-            while cur != -1:
-                cur = src.find("data-id=\"", cur)
-                if cur == -1:
+            # get all pictures in current page
+            for a in soup.select("article[id^='post_'] a"):
+                url = urlHandler("https://"+WebPicType2DomainStr(WebPicType.DANBOORU)+a.get('href'))
+                output.append(url.clearParam().toString())
+                pic_count += 1
+                
+                # reaches limit
+                if pic_count == limit:
                     break
-                cur += 9
-                post_id = src[cur:src.find('\"', cur)]
-                output.append("https://"+WebPicType2DomainStr(WebPicType.DANBOORU)+"/posts/"+post_id)
-                counter += 1
-                if counter == max_num:
-                    return output
             
+            # get next page url & fetch next page
+            next_link = soup.select_one("link[rel='next']")
+            if next_link:
+                next_link = "https://"+WebPicType2DomainStr(WebPicType.DANBOORU)+next_link.get('href')
+                soup = BeautifulSoup(getSrcStr(next_link), 'lxml')
+            else:
+                break
+        
         return output
     
 

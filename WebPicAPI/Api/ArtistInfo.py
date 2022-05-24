@@ -1,4 +1,6 @@
 
+from flask import has_app_context
+from WebPicAPI.Util.urlHandler import urlHandler
 from ..ApiManager import *
 from ..Util.httpUtilities import randDelay, getSrcStr, getSrcJson
 from .types import WebPicType
@@ -7,18 +9,34 @@ import urllib.parse
 import ntpath
 import requests
 import json
+from bs4 import BeautifulSoup
 
 
 class ArtistInfo:
     """Process & Hold Artist Information"""
     
-    # private variables
-    __artist_names: list = []
-    __pixiv_urls: list = []
-    __twitter_urls: list = []
-    
     # constructor
-    def __init__(self, webpic_type: WebPicType, url: str):
+    def __init__(self, webpic_type:WebPicType, url:str, min_delay:float=0.0, max_delay:float=1.0):
+        """
+            Initialize & fetch ArtistInfo.\n
+            \n
+            :Param:\n
+                webpic_type  => WebPicType of input url\n
+                url          => str url to search artist info\n
+                min_delay    => float minimum delay time in seconds (default 0.0)\n
+                max_delay    => float maximum delay time in seconds (default 1.0)\n
+            \n
+            :Number of Requests:\n
+                depends on webpic_type, checkout __analyzeInfo_WebPicType functions\n
+        """
+        
+        # private members
+        self.__artist_names:list = []
+        self.__pixiv_urls:list = []
+        self.__twitter_urls:list = []
+        self.__min_delay:float = min_delay
+        self.__max_delay:float = max_delay
+        
         if webpic_type == WebPicType.PIXIV:
             self.__analyzeInfo_pixiv(url)
         elif webpic_type == WebPicType.TWITTER:
@@ -159,50 +177,46 @@ class ArtistInfo:
         self.__twitter_urls.append(url)
     
     def __analyzeInfo_danbooru(self, url: str):
-        cur = 0
+        """
+            analyzing danbooru artist url.\n
+            \n
+            :Number of Requests: [1]\n
+        """
         
-        # get url source
-        randDelay(1.0, 2.5)
-        src = getSrcStr(url)
+        # get url source soup
+        randDelay(self.__min_delay, self.__max_delay)
+        soup = BeautifulSoup(getSrcStr(url), 'lxml')
         
         # finding artist names
-        cur = src.find("Other Names")
-        if cur != -1:
-            names_src = src[cur:src.find("/li", cur)]
-            cur = 0
-            while cur != -1:
-                cur = names_src.find("artist-other-name", cur)
-                if cur == -1:
-                    break
-                cur = names_src.find("any_name_matches%5D=", cur) + 20
-                tmp_str = names_src[cur:names_src.find('\"', cur)]
-                self.__artist_names.append(urllib.parse.unquote(tmp_str))
-                cur += 3
+        tmp_name = soup.select("a.artist-other-name")
+        # artist page provided name
+        if tmp_name and len(tmp_name) > 0:
+            for name in tmp_name:
+                self.__artist_names.append(name.getText())
+        
+        # do not have name provided, get name from page title
         else:
-            cur = src.find("og:title\" content=\"") + 19
-            self.__artist_names.append(src[cur:src.find(" | Artist Profile", cur)])
+            tmp_name = soup.select_one("meta[property='og:title']")
+            self.__artist_names.append(
+                tmp_name.getText().split('|')[0].strip()
+            )
         
         # finding pixiv & twitter url
-        tmp_url = ""
-        had_pixiv = False
-        had_twitter = False
-        cur = src.find("list-bulleted")
-        url_src = src[cur:src.find("/ul", cur)]
-        cur = 0
-        while cur != -1:
-            cur = url_src.find("href=\"", cur)
-            if cur == -1:
-                break
-            cur += 6
-            tmp_url = url_src[cur:url_src.find('\"', cur)]
-            # checking url
-            if ("pixiv.net/member.php?id=" in tmp_url or
-                "pixiv.net/users/" in tmp_url):
-                self.__pixiv_urls.append(tmp_url)
-            elif "twitter.com/" in tmp_url:
-                tmp_str = tmp_url[tmp_url.find("twitter.com/")+12:]
-                if '/' not in tmp_str and '?' not in tmp_str:
-                    self.__twitter_urls.append(tmp_url)
+        tmp_url = soup.select("a[rel='external noreferrer nofollow']")
+        if tmp_url:
+            for url in tmp_url:
+                
+                if ("pixiv.net/member.php?id=" in url.get('href') or
+                    "pixiv.net/users/" in url.get('href')):
+                    self.__pixiv_urls.append(url.get('href'))
+                
+                elif "twitter.com" in url.get('href'):
+                    url = urlHandler(url.get('href'))
+                    if not url.isPatternInPathR(r"/intent.*"): # no twitter intent url
+                        self.__twitter_urls.append(url.toString())
+            
+            self.__pixiv_urls = list(set(self.__pixiv_urls))
+            self.__twitter_urls = list(set(self.__twitter_urls))
     
     def __analyzeInfo_yandere(self, url: str):
         # get 1st name from url

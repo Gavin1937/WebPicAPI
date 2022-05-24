@@ -8,6 +8,7 @@ from .types import (WebPicType, ParentChild,
 
 from .ArtistInfo import ArtistInfo
 
+from .WebPic import WebPic
 from .PixivPic import PixivPic
 from .TwitterPic import TwitterPic
 from .DanbooruPic import DanbooruPic
