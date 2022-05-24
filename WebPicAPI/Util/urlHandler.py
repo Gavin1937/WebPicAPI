@@ -16,14 +16,13 @@ import re
 
 class urlHandler:
     
-    __parseResult:ParseResult
-    __path:PurePath
-    __param:dict
-    
     def __init__(self, url:str):
-        self.__parseResult = urlparse(url)
-        self.__path = PurePath(self.__parseResult.path)
-        self.__param = dict()
+        
+        # private members
+        self.__parseResult:ParseResult = urlparse(url)
+        self.__path:PurePath = PurePath(self.__parseResult.path)
+        self.__param:dict = dict()
+        
         # parse parameters
         for p in self.__parseResult.query.split('&'):
             if p.count('=') != 1: # more than 1 '=', invalid parameter
@@ -104,6 +103,9 @@ class urlHandler:
                 return v
         return self.__param.get(key)
     
+    def getDomain(self) -> str:
+        return self.__parseResult.netloc
+    
     def isPatternInPath(self, pattern:str) -> bool:
         "Whether input pattern in url path\n"
         
@@ -126,6 +128,17 @@ class urlHandler:
             type(self.__param.get(key)) is list
         )
     
+    def isPatternInDomain(self, pattern:str) -> bool:
+        "Whether input pattern in url domain\n"
+        
+        return (pattern in self.__parseResult.netloc)
+    
+    def isPatternInDomainR(self, pattern:str) -> bool:
+        "Whether input Regex pattern in url domain\n"
+        
+        match = re.search(pattern, self.__parseResult.netloc)
+        return (match != None)
+    
     
     # mutator
     def setParam(self, key:str, val:str, val_idx:int=0, use_quote:bool=True):
@@ -141,6 +154,9 @@ class urlHandler:
                             function will use this parameter to edit the list element\n
                 use_quote => bool flag, whether encode input value with html url encoding\n
         """
+        
+        if type(val) is not str:
+            val = str(val)
         
         if use_quote:
             val = quote(val)
@@ -212,6 +228,15 @@ class urlHandler:
         except IndexError as e:
             e.args = (f"Invalid val_idx for key: {key}")
             raise
+    
+    def clearParam(self):
+        "Return a copy of urlHandler without url parameter."
+        
+        cp = self.copy()
+        cp.__param = {}
+        cp.__parseResult = cp.__parseResult._replace(query='')
+        
+        return cp
     
     def setPath(self, path:Union[str,PurePath]):
         """
