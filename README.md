@@ -3,6 +3,7 @@
 
 ### This API is designed to fetch basic info and download pictures from popular picture/wallpaper websites and social media.
 
+## This project is deprecated, checkout the complete rewrite of this project [WebImageAPI](https://github.com/Gavin1937/WebImageAPI)
 
 # Supported Websites:
 
